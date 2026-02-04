@@ -1,179 +1,225 @@
 using UnityEngine;
-using System.Collections.Generic;
-using System.Linq;
+using System;
 
 /// <summary>
-/// Represents a single entry in the leaderboard with player name, score, and date.
-/// Serializable so it can be saved/loaded via JSON.
+/// Data structure for storing personal best scores.
+/// Tracks today's best, this week's best, and all-time best.
 /// </summary>
 [System.Serializable]
-public class LeaderboardEntry
+public class PersonalBestData
 {
-    // Name entered by the player
-    public string playerName;
-    // Score achieved by the player
-    public int score;
-    // Date when the score was achieved (formatted as MM/dd/yyyy)
-    public string date;
+    // Today's best score
+    public int todayBest;
+    // Date when today's best was set (to reset daily)
+    public string todayDate;
 
-    /// <summary>
-    /// Creates a new leaderboard entry with the current date.
-    /// </summary>
-    /// <param name="name">Player's name</param>
-    /// <param name="score">Score achieved</param>
-    public LeaderboardEntry(string name, int score)
+    // This week's best score
+    public int weekBest;
+    // Week number when week's best was set (to reset weekly)
+    public int weekNumber;
+    // Year of the week (to handle year transitions)
+    public int weekYear;
+
+    // All-time best score
+    public int allTimeBest;
+
+    public PersonalBestData()
     {
-        this.playerName = name;
-        this.score = score;
-        this.date = System.DateTime.Now.ToString("MM/dd/yyyy");
+        todayBest = 0;
+        todayDate = "";
+        weekBest = 0;
+        weekNumber = 0;
+        weekYear = 0;
+        allTimeBest = 0;
     }
 }
 
 /// <summary>
-/// Container class for serializing the list of leaderboard entries to JSON.
-/// </summary>
-[System.Serializable]
-public class LeaderboardData
-{
-    // List of all leaderboard entries
-    public List<LeaderboardEntry> entries = new List<LeaderboardEntry>();
-}
-
-/// <summary>
-/// Manages the leaderboard data including saving, loading, and querying scores.
+/// Manages personal best scores: today, this week, and all-time.
+/// Automatically resets daily and weekly bests when appropriate.
 /// Uses PlayerPrefs to persist data between sessions.
-/// Singleton pattern for global access.
 /// </summary>
 public class LeaderboardManager : MonoBehaviour
 {
     // Singleton instance for global access
     public static LeaderboardManager Instance { get; private set; }
 
-    // Key used to store leaderboard data in PlayerPrefs
-    private const string LEADERBOARD_KEY = "FlappyBallLeaderboard";
-    // Maximum number of entries to keep in the leaderboard
-    private const int MAX_ENTRIES = 10;
+    // Key used to store data in PlayerPrefs
+    private const string SAVE_KEY = "FlappyBallPersonalBests";
 
-    // Container holding all leaderboard entries
-    private LeaderboardData leaderboardData;
+    // Personal best data
+    private PersonalBestData data;
 
     /// <summary>
-    /// Unity Awake - sets up singleton and loads saved leaderboard data.
+    /// Unity Awake - sets up singleton and loads saved data.
     /// </summary>
     void Awake()
     {
-        // Singleton pattern: ensure only one LeaderboardManager exists
-        if (Instance == null) Instance = this;
-        else Destroy(gameObject);
-
-        // Persist across scene loads so leaderboard data is maintained
-        DontDestroyOnLoad(gameObject);
-        // Load any previously saved leaderboard data
-        LoadLeaderboard();
-    }
-
-    /// <summary>
-    /// Adds a new score to the leaderboard and saves the updated data.
-    /// Automatically sorts by score and keeps only top entries.
-    /// </summary>
-    /// <param name="playerName">Name of the player</param>
-    /// <param name="score">Score achieved</param>
-    public void AddScore(string playerName, int score)
-    {
-        // Create new entry with current date
-        LeaderboardEntry newEntry = new LeaderboardEntry(playerName, score);
-        leaderboardData.entries.Add(newEntry);
-
-        // Sort entries by score (highest first) and keep only top MAX_ENTRIES
-        leaderboardData.entries = leaderboardData.entries
-            .OrderByDescending(e => e.score)
-            .Take(MAX_ENTRIES)
-            .ToList();
-
-        // Persist changes to PlayerPrefs
-        SaveLeaderboard();
-    }
-
-    /// <summary>
-    /// Returns the top scores from the leaderboard.
-    /// </summary>
-    /// <param name="count">Number of entries to return (default 10)</param>
-    /// <returns>List of top leaderboard entries</returns>
-    public List<LeaderboardEntry> GetTopScores(int count = 10)
-    {
-        return leaderboardData.entries.Take(count).ToList();
-    }
-
-    /// <summary>
-    /// Checks if a score qualifies for the leaderboard.
-    /// </summary>
-    /// <param name="score">Score to check</param>
-    /// <returns>True if score would make it onto the leaderboard</returns>
-    public bool IsHighScore(int score)
-    {
-        // If leaderboard isn't full, any score qualifies
-        if (leaderboardData.entries.Count < MAX_ENTRIES)
-            return true;
-
-        // Otherwise, score must beat the lowest entry
-        return score > leaderboardData.entries.Last().score;
-    }
-
-    /// <summary>
-    /// Determines what rank a score would achieve on the leaderboard.
-    /// </summary>
-    /// <param name="score">Score to check</param>
-    /// <returns>Rank position (1 = first place)</returns>
-    public int GetRank(int score)
-    {
-        int rank = 1;
-        // Count how many existing scores are higher
-        foreach (var entry in leaderboardData.entries)
+        // Singleton pattern
+        if (Instance == null)
         {
-            if (score > entry.score)
-                return rank;
-            rank++;
-        }
-        return rank;
-    }
-
-    /// <summary>
-    /// Saves the leaderboard data to PlayerPrefs as JSON.
-    /// </summary>
-    private void SaveLeaderboard()
-    {
-        // Convert to JSON and store in PlayerPrefs
-        string json = JsonUtility.ToJson(leaderboardData);
-        PlayerPrefs.SetString(LEADERBOARD_KEY, json);
-        PlayerPrefs.Save(); // Force immediate write to disk
-    }
-
-    /// <summary>
-    /// Loads leaderboard data from PlayerPrefs.
-    /// Creates empty leaderboard if no saved data exists.
-    /// </summary>
-    private void LoadLeaderboard()
-    {
-        if (PlayerPrefs.HasKey(LEADERBOARD_KEY))
-        {
-            // Load and deserialize existing data
-            string json = PlayerPrefs.GetString(LEADERBOARD_KEY);
-            leaderboardData = JsonUtility.FromJson<LeaderboardData>(json);
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+            LoadData();
+            CheckAndResetPeriods();
         }
         else
         {
-            // Create new empty leaderboard
-            leaderboardData = new LeaderboardData();
+            Destroy(gameObject);
         }
     }
 
     /// <summary>
-    /// Clears all leaderboard entries and saves the empty state.
-    /// Useful for testing or reset functionality.
+    /// Checks if daily or weekly periods have passed and resets scores accordingly.
     /// </summary>
-    public void ClearLeaderboard()
+    void CheckAndResetPeriods()
     {
-        leaderboardData.entries.Clear();
-        SaveLeaderboard();
+        string today = DateTime.Now.ToString("yyyy-MM-dd");
+        int currentWeek = GetWeekOfYear(DateTime.Now);
+        int currentYear = DateTime.Now.Year;
+
+        // Check if it's a new day
+        if (data.todayDate != today)
+        {
+            Debug.Log($"LeaderboardManager: New day detected. Resetting today's best. (Old: {data.todayDate}, New: {today})");
+            data.todayBest = 0;
+            data.todayDate = today;
+        }
+
+        // Check if it's a new week
+        if (data.weekNumber != currentWeek || data.weekYear != currentYear)
+        {
+            Debug.Log($"LeaderboardManager: New week detected. Resetting week's best.");
+            data.weekBest = 0;
+            data.weekNumber = currentWeek;
+            data.weekYear = currentYear;
+        }
+
+        SaveData();
+    }
+
+    /// <summary>
+    /// Gets the week number for a given date.
+    /// </summary>
+    int GetWeekOfYear(DateTime date)
+    {
+        var culture = System.Globalization.CultureInfo.CurrentCulture;
+        return culture.Calendar.GetWeekOfYear(date,
+            System.Globalization.CalendarWeekRule.FirstDay,
+            DayOfWeek.Monday);
+    }
+
+    /// <summary>
+    /// Submits a score and updates personal bests if applicable.
+    /// </summary>
+    /// <param name="score">The score achieved</param>
+    /// <returns>True if any personal best was beaten</returns>
+    public bool SubmitScore(int score)
+    {
+        if (score <= 0) return false;
+
+        bool beatAnyBest = false;
+
+        // Check and update today's best
+        if (score > data.todayBest)
+        {
+            data.todayBest = score;
+            data.todayDate = DateTime.Now.ToString("yyyy-MM-dd");
+            beatAnyBest = true;
+            Debug.Log($"LeaderboardManager: New today's best: {score}");
+        }
+
+        // Check and update week's best
+        if (score > data.weekBest)
+        {
+            data.weekBest = score;
+            data.weekNumber = GetWeekOfYear(DateTime.Now);
+            data.weekYear = DateTime.Now.Year;
+            beatAnyBest = true;
+            Debug.Log($"LeaderboardManager: New week's best: {score}");
+        }
+
+        // Check and update all-time best
+        if (score > data.allTimeBest)
+        {
+            data.allTimeBest = score;
+            beatAnyBest = true;
+            Debug.Log($"LeaderboardManager: New all-time best: {score}");
+        }
+
+        SaveData();
+        return beatAnyBest;
+    }
+
+    /// <summary>
+    /// Gets today's best score.
+    /// </summary>
+    public int GetTodayBest()
+    {
+        CheckAndResetPeriods();
+        return data.todayBest;
+    }
+
+    /// <summary>
+    /// Gets this week's best score.
+    /// </summary>
+    public int GetWeekBest()
+    {
+        CheckAndResetPeriods();
+        return data.weekBest;
+    }
+
+    /// <summary>
+    /// Gets all-time best score.
+    /// </summary>
+    public int GetAllTimeBest()
+    {
+        return data.allTimeBest;
+    }
+
+    /// <summary>
+    /// Checks if a score beats any personal best.
+    /// </summary>
+    public bool IsNewPersonalBest(int score)
+    {
+        return score > data.todayBest || score > data.weekBest || score > data.allTimeBest;
+    }
+
+    /// <summary>
+    /// Saves data to PlayerPrefs.
+    /// </summary>
+    private void SaveData()
+    {
+        string json = JsonUtility.ToJson(data);
+        PlayerPrefs.SetString(SAVE_KEY, json);
+        PlayerPrefs.Save();
+    }
+
+    /// <summary>
+    /// Loads data from PlayerPrefs.
+    /// </summary>
+    private void LoadData()
+    {
+        if (PlayerPrefs.HasKey(SAVE_KEY))
+        {
+            string json = PlayerPrefs.GetString(SAVE_KEY);
+            data = JsonUtility.FromJson<PersonalBestData>(json);
+            Debug.Log($"LeaderboardManager: Loaded data - Today: {data.todayBest}, Week: {data.weekBest}, All-Time: {data.allTimeBest}");
+        }
+        else
+        {
+            data = new PersonalBestData();
+            Debug.Log("LeaderboardManager: No saved data found, starting fresh");
+        }
+    }
+
+    /// <summary>
+    /// Clears all personal best data (for testing/reset).
+    /// </summary>
+    public void ClearAllData()
+    {
+        data = new PersonalBestData();
+        SaveData();
+        Debug.Log("LeaderboardManager: All data cleared");
     }
 }

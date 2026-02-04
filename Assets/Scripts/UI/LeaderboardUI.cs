@@ -1,67 +1,52 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
-using System.Collections.Generic;
 
 /// <summary>
-/// Handles the leaderboard UI display and player name entry.
-/// Shows top scores with special coloring for top 3 positions.
-/// Prompts player for name entry when achieving a high score.
+/// Displays personal best scores on the game over screen.
+/// Shows: Today's Best, This Week's Best, All-Time Best.
+/// Automatically appears when game ends.
 /// </summary>
 public class LeaderboardUI : MonoBehaviour
 {
     #region Serialized Fields
 
-    [Header("UI References")]
-    [Tooltip("Main panel containing the leaderboard display")]
-    [SerializeField] private GameObject leaderboardPanel;
+    [Header("Score Display")]
+    [Tooltip("Text showing today's best score")]
+    [SerializeField] private TextMeshProUGUI todayBestText;
 
-    [Tooltip("Parent transform where leaderboard entry UI elements are spawned")]
-    [SerializeField] private Transform entryContainer;
+    [Tooltip("Text showing this week's best score")]
+    [SerializeField] private TextMeshProUGUI weekBestText;
 
-    [Tooltip("Prefab for individual leaderboard entry rows")]
-    [SerializeField] private GameObject entryPrefab;
+    [Tooltip("Text showing all-time best score")]
+    [SerializeField] private TextMeshProUGUI allTimeBestText;
 
-    [Tooltip("Input field for player to enter their name")]
-    [SerializeField] private TMP_InputField nameInputField;
+    [Tooltip("Text showing current score")]
+    [SerializeField] private TextMeshProUGUI currentScoreText;
 
-    [Tooltip("Panel shown when player achieves a high score to enter their name")]
-    [SerializeField] private GameObject nameEntryPanel;
+    [Header("New Record Indicators")]
+    [Tooltip("GameObject to show when new today's best is achieved")]
+    [SerializeField] private GameObject newTodayBestIndicator;
 
-    [Tooltip("Button to submit score")]
-    [SerializeField] private Button submitButton;
+    [Tooltip("GameObject to show when new week's best is achieved")]
+    [SerializeField] private GameObject newWeekBestIndicator;
 
-    [Tooltip("Button to close leaderboard")]
-    [SerializeField] private Button closeButton;
-
-    [Header("Colors")]
-    [Tooltip("Color for 1st place entry (gold)")]
-    [SerializeField] private Color firstPlaceColor = new Color(1f, 0.84f, 0f); // Gold
-
-    [Tooltip("Color for 2nd place entry (silver)")]
-    [SerializeField] private Color secondPlaceColor = new Color(0.75f, 0.75f, 0.75f); // Silver
-
-    [Tooltip("Color for 3rd place entry (bronze)")]
-    [SerializeField] private Color thirdPlaceColor = new Color(0.8f, 0.5f, 0.2f); // Bronze
-
-    [Tooltip("Color for other entries")]
-    [SerializeField] private Color normalColor = Color.white;
+    [Tooltip("GameObject to show when new all-time best is achieved")]
+    [SerializeField] private GameObject newAllTimeBestIndicator;
 
     [Header("Audio")]
-    [Tooltip("Sound played when new high score is achieved")]
-    [SerializeField] private AudioClip highScoreSound;
-
-    [Tooltip("Sound played when score is submitted")]
-    [SerializeField] private AudioClip submitSound;
+    [Tooltip("Sound played when new record is achieved")]
+    [SerializeField] private AudioClip newRecordSound;
 
     #endregion
 
     #region Private Fields
 
-    // Stores the player's score when game ends for submission
-    private int currentScore;
-    // Audio source for sounds
     private AudioSource audioSource;
+    private int lastScore;
+    private bool beatTodayBest;
+    private bool beatWeekBest;
+    private bool beatAllTimeBest;
 
     #endregion
 
@@ -69,7 +54,6 @@ public class LeaderboardUI : MonoBehaviour
 
     void Awake()
     {
-        // Get or add audio source
         audioSource = GetComponent<AudioSource>();
         if (audioSource == null)
         {
@@ -83,281 +67,175 @@ public class LeaderboardUI : MonoBehaviour
         // Subscribe to game over event
         if (GameManager.Instance != null)
         {
-            GameManager.Instance.OnGameOver.AddListener(CheckForHighScore);
+            GameManager.Instance.OnGameOver.AddListener(OnGameOver);
+            Debug.Log("LeaderboardUI: Subscribed to GameManager.OnGameOver");
+        }
+        else
+        {
+            Debug.LogError("LeaderboardUI: GameManager.Instance is null!");
         }
 
-        // Setup button listeners
-        if (submitButton != null)
+        // Check LeaderboardManager
+        if (LeaderboardManager.Instance == null)
         {
-            submitButton.onClick.AddListener(SubmitScore);
-        }
-        if (closeButton != null)
-        {
-            closeButton.onClick.AddListener(HideLeaderboard);
+            Debug.LogError("LeaderboardUI: LeaderboardManager.Instance is null! Make sure LeaderboardManager is in the scene.");
         }
 
-        // Initialize UI state
-        if (leaderboardPanel != null) leaderboardPanel.SetActive(false);
-        if (nameEntryPanel != null) nameEntryPanel.SetActive(false);
+        // Hide new record indicators at start
+        HideAllNewRecordIndicators();
     }
 
     void OnDestroy()
     {
-        // Unsubscribe from events
         if (GameManager.Instance != null)
         {
-            GameManager.Instance.OnGameOver.RemoveListener(CheckForHighScore);
+            GameManager.Instance.OnGameOver.RemoveListener(OnGameOver);
         }
     }
 
     #endregion
 
-    #region High Score Check
+    #region Game Over Handler
 
     /// <summary>
-    /// Called when game ends to check if player achieved a high score.
-    /// Shows name entry panel if score qualifies for leaderboard.
+    /// Called when game ends - submits score and updates display.
     /// </summary>
-    void CheckForHighScore()
+    void OnGameOver()
     {
-        if (GameManager.Instance == null) return;
+        Debug.Log("LeaderboardUI: OnGameOver called");
+
+        if (GameManager.Instance == null || LeaderboardManager.Instance == null)
+        {
+            Debug.LogError("LeaderboardUI: Missing GameManager or LeaderboardManager!");
+            return;
+        }
+
+        // Get current score
+        lastScore = GameManager.Instance.GetScore();
+        Debug.Log($"LeaderboardUI: Current score = {lastScore}");
+
+        // Store old bests for comparison
+        int oldTodayBest = LeaderboardManager.Instance.GetTodayBest();
+        int oldWeekBest = LeaderboardManager.Instance.GetWeekBest();
+        int oldAllTimeBest = LeaderboardManager.Instance.GetAllTimeBest();
+
+        // Submit score to update records
+        bool beatAnyRecord = LeaderboardManager.Instance.SubmitScore(lastScore);
+
+        // Check which records were beaten
+        beatTodayBest = lastScore > oldTodayBest && lastScore > 0;
+        beatWeekBest = lastScore > oldWeekBest && lastScore > 0;
+        beatAllTimeBest = lastScore > oldAllTimeBest && lastScore > 0;
+
+        // Update the display
+        UpdateDisplay();
+
+        // Play sound if any record beaten
+        if (beatAnyRecord && newRecordSound != null && audioSource != null)
+        {
+            audioSource.PlayOneShot(newRecordSound);
+        }
+    }
+
+    #endregion
+
+    #region Display
+
+    /// <summary>
+    /// Updates all score displays with current values.
+    /// </summary>
+    void UpdateDisplay()
+    {
+        // Update current score
+        if (currentScoreText != null)
+        {
+            currentScoreText.text = lastScore.ToString();
+        }
+
+        // Update today's best
+        if (todayBestText != null)
+        {
+            int todayBest = LeaderboardManager.Instance.GetTodayBest();
+            todayBestText.text = todayBest.ToString();
+        }
+
+        // Update week's best
+        if (weekBestText != null)
+        {
+            int weekBest = LeaderboardManager.Instance.GetWeekBest();
+            weekBestText.text = weekBest.ToString();
+        }
+
+        // Update all-time best
+        if (allTimeBestText != null)
+        {
+            int allTimeBest = LeaderboardManager.Instance.GetAllTimeBest();
+            allTimeBestText.text = allTimeBest.ToString();
+        }
+
+        // Show/hide new record indicators
+        UpdateNewRecordIndicators();
+
+        Debug.Log($"LeaderboardUI: Display updated - Today: {LeaderboardManager.Instance.GetTodayBest()}, Week: {LeaderboardManager.Instance.GetWeekBest()}, All-Time: {LeaderboardManager.Instance.GetAllTimeBest()}");
+    }
+
+    /// <summary>
+    /// Shows indicators for any new records achieved.
+    /// </summary>
+    void UpdateNewRecordIndicators()
+    {
+        // Hide all first
+        HideAllNewRecordIndicators();
+
+        // Show relevant indicators
+        if (newTodayBestIndicator != null && beatTodayBest)
+        {
+            newTodayBestIndicator.SetActive(true);
+        }
+
+        if (newWeekBestIndicator != null && beatWeekBest)
+        {
+            newWeekBestIndicator.SetActive(true);
+        }
+
+        if (newAllTimeBestIndicator != null && beatAllTimeBest)
+        {
+            newAllTimeBestIndicator.SetActive(true);
+        }
+    }
+
+    /// <summary>
+    /// Hides all new record indicators.
+    /// </summary>
+    void HideAllNewRecordIndicators()
+    {
+        if (newTodayBestIndicator != null) newTodayBestIndicator.SetActive(false);
+        if (newWeekBestIndicator != null) newWeekBestIndicator.SetActive(false);
+        if (newAllTimeBestIndicator != null) newAllTimeBestIndicator.SetActive(false);
+    }
+
+    #endregion
+
+    #region Public Methods
+
+    /// <summary>
+    /// Manually refreshes the display with current values.
+    /// Call this if you need to update the UI outside of game over.
+    /// </summary>
+    public void RefreshDisplay()
+    {
         if (LeaderboardManager.Instance == null) return;
 
-        // Get the final score from GameManager
-        currentScore = GameManager.Instance.GetScore();
+        if (todayBestText != null)
+            todayBestText.text = LeaderboardManager.Instance.GetTodayBest().ToString();
 
-        // Show name entry if this score qualifies for the leaderboard
-        if (LeaderboardManager.Instance.IsHighScore(currentScore))
-        {
-            ShowNameEntryPanel();
-        }
-    }
+        if (weekBestText != null)
+            weekBestText.text = LeaderboardManager.Instance.GetWeekBest().ToString();
 
-    /// <summary>
-    /// Shows the name entry panel for high score submission.
-    /// </summary>
-    void ShowNameEntryPanel()
-    {
-        if (nameEntryPanel != null)
-        {
-            nameEntryPanel.SetActive(true);
+        if (allTimeBestText != null)
+            allTimeBestText.text = LeaderboardManager.Instance.GetAllTimeBest().ToString();
 
-            // Clear previous input
-            if (nameInputField != null)
-            {
-                nameInputField.text = "";
-                nameInputField.Select();
-                nameInputField.ActivateInputField();
-            }
-
-            // Play high score sound
-            PlaySound(highScoreSound);
-        }
-    }
-
-    #endregion
-
-    #region Score Submission
-
-    /// <summary>
-    /// Button callback for submit button on name entry panel.
-    /// Saves the score with entered name and shows leaderboard.
-    /// </summary>
-    public void SubmitScore()
-    {
-        if (LeaderboardManager.Instance == null) return;
-
-        // Get player name, default to "Anonymous" if empty
-        string playerName = nameInputField != null ? nameInputField.text : "";
-        if (string.IsNullOrWhiteSpace(playerName))
-        {
-            playerName = "Anonymous";
-        }
-
-        // Sanitize name (limit length, remove special characters)
-        playerName = SanitizeName(playerName);
-
-        // Add score to leaderboard
-        LeaderboardManager.Instance.AddScore(playerName, currentScore);
-
-        // Play submit sound
-        PlaySound(submitSound);
-
-        // Hide name entry and show leaderboard
-        if (nameEntryPanel != null) nameEntryPanel.SetActive(false);
-        ShowLeaderboard();
-    }
-
-    /// <summary>
-    /// Sanitizes player name input.
-    /// </summary>
-    string SanitizeName(string name)
-    {
-        // Trim whitespace
-        name = name.Trim();
-
-        // Limit length
-        if (name.Length > 15)
-        {
-            name = name.Substring(0, 15);
-        }
-
-        return name;
-    }
-
-    #endregion
-
-    #region Leaderboard Display
-
-    /// <summary>
-    /// Shows the leaderboard panel and populates it with current scores.
-    /// </summary>
-    public void ShowLeaderboard()
-    {
-        if (leaderboardPanel != null)
-        {
-            leaderboardPanel.SetActive(true);
-            PopulateLeaderboard();
-        }
-    }
-
-    /// <summary>
-    /// Hides the leaderboard panel.
-    /// </summary>
-    public void HideLeaderboard()
-    {
-        if (leaderboardPanel != null)
-        {
-            leaderboardPanel.SetActive(false);
-        }
-    }
-
-    /// <summary>
-    /// Toggles leaderboard visibility.
-    /// </summary>
-    public void ToggleLeaderboard()
-    {
-        if (leaderboardPanel != null)
-        {
-            if (leaderboardPanel.activeSelf)
-            {
-                HideLeaderboard();
-            }
-            else
-            {
-                ShowLeaderboard();
-            }
-        }
-    }
-
-    /// <summary>
-    /// Populates the leaderboard display with current top scores.
-    /// Creates UI entries for each score with appropriate styling.
-    /// </summary>
-    void PopulateLeaderboard()
-    {
-        if (entryContainer == null || entryPrefab == null) return;
-        if (LeaderboardManager.Instance == null) return;
-
-        // Clear any existing entry UI elements
-        foreach (Transform child in entryContainer)
-        {
-            Destroy(child.gameObject);
-        }
-
-        // Get top scores from LeaderboardManager
-        List<LeaderboardEntry> entries = LeaderboardManager.Instance.GetTopScores();
-
-        // Create UI entry for each score
-        for (int i = 0; i < entries.Count; i++)
-        {
-            CreateLeaderboardEntry(i, entries[i]);
-        }
-    }
-
-    /// <summary>
-    /// Creates a single leaderboard entry UI element.
-    /// </summary>
-    void CreateLeaderboardEntry(int index, LeaderboardEntry entry)
-    {
-        // Instantiate entry prefab as child of container
-        GameObject entryObj = Instantiate(entryPrefab, entryContainer);
-        entryObj.name = $"Entry_{index + 1}";
-
-        // Get text components from prefab
-        TextMeshProUGUI[] texts = entryObj.GetComponentsInChildren<TextMeshProUGUI>();
-
-        // Populate text fields (expects 4: rank, name, score, date)
-        if (texts.Length >= 1) texts[0].text = (index + 1).ToString();     // Rank
-        if (texts.Length >= 2) texts[1].text = entry.playerName;            // Name
-        if (texts.Length >= 3) texts[2].text = entry.score.ToString();      // Score
-        if (texts.Length >= 4) texts[3].text = entry.date;                  // Date
-
-        // Apply color based on rank
-        Color entryColor = GetRankColor(index);
-        SetEntryColor(texts, entryColor);
-
-        // Highlight if this is the player's current score
-        if (entry.score == currentScore)
-        {
-            HighlightEntry(entryObj);
-        }
-    }
-
-    /// <summary>
-    /// Gets the appropriate color for a rank position.
-    /// </summary>
-    Color GetRankColor(int index)
-    {
-        switch (index)
-        {
-            case 0: return firstPlaceColor;  // Gold
-            case 1: return secondPlaceColor; // Silver
-            case 2: return thirdPlaceColor;  // Bronze
-            default: return normalColor;
-        }
-    }
-
-    /// <summary>
-    /// Sets the color of all text elements in a leaderboard entry.
-    /// </summary>
-    void SetEntryColor(TextMeshProUGUI[] texts, Color color)
-    {
-        foreach (var text in texts)
-        {
-            if (text != null)
-            {
-                text.color = color;
-            }
-        }
-    }
-
-    /// <summary>
-    /// Highlights a leaderboard entry (for current player's score).
-    /// </summary>
-    void HighlightEntry(GameObject entryObj)
-    {
-        // Add a background highlight or scale effect
-        Image bg = entryObj.GetComponent<Image>();
-        if (bg != null)
-        {
-            bg.color = new Color(1f, 1f, 1f, 0.2f);
-        }
-    }
-
-    #endregion
-
-    #region Audio
-
-    /// <summary>
-    /// Plays a sound effect.
-    /// </summary>
-    void PlaySound(AudioClip clip)
-    {
-        if (clip != null && audioSource != null)
-        {
-            audioSource.PlayOneShot(clip);
-        }
+        HideAllNewRecordIndicators();
     }
 
     #endregion

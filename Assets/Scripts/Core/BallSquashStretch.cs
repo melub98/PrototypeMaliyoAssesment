@@ -52,7 +52,7 @@ public class BallSquashStretch : MonoBehaviour
     /// </summary>
     void LateUpdate()
     {
-        if (!GameManager.Instance.IsPlaying)
+        if (GameManager.Instance == null || !GameManager.Instance.IsPlaying)
         {
             // Reset to base scale when not playing
             visualTransform.localScale = baseScale;
