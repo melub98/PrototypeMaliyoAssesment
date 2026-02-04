@@ -1,0 +1,398 @@
+================================================================================
+                    FLAPPY BALL MINI-GAME - SCENE SETUP GUIDE
+================================================================================
+
+This guide explains how to set up the Unity scene for the Flappy Ball mini-game.
+
+================================================================================
+                              1. REQUIRED TAGS
+================================================================================
+
+Go to Edit > Project Settings > Tags and Layers and add these tags:
+
+    - Player      (for the ball)
+    - Platform    (for horizontal platform obstacles)
+    - Ground      (for bottom boundary)
+    - Ceiling     (for top boundary)
+
+================================================================================
+                         2. SCENE HIERARCHY STRUCTURE
+================================================================================
+
+Create the following hierarchy in your scene:
+
+    Main Camera
+    --- Managers ---
+        GameManager         (Empty GameObject)
+        PowerUpManager      (Empty GameObject)
+        PowerUpSpawner      (Empty GameObject)
+        LeaderboardManager  (Empty GameObject)
+    --- Game Objects ---
+        Ball                (Circle sprite)
+        PlatformSpawner     (Empty GameObject)
+    --- Boundaries ---
+        Ground              (Sprite/Collider at bottom)
+        Ceiling             (Sprite/Collider at top)
+    --- UI ---
+        Canvas
+            StartPanel
+            GameOverPanel
+            ScoreText
+            NameEntryPanel
+            LeaderboardPanel
+
+================================================================================
+                           3. MANAGER SETUP
+================================================================================
+
+GAMEMANAGER (Empty GameObject):
+    - Add Component: GameManager.cs
+    - Settings:
+        * Game Speed: 3 (adjust for difficulty)
+
+POWERUPMANAGER (Empty GameObject):
+    - Add Component: PowerUpManager.cs
+
+POWERUPSPAWNER (Empty GameObject):
+    - Add Component: PowerUpSpawner.cs
+    - Settings:
+        * Power Up Prefabs: [Assign your 3 power-up prefabs]
+        * Spawn Chance: 15 (percentage)
+        * Min Spawn Interval: 5 (seconds)
+
+LEADERBOARDMANAGER (Empty GameObject):
+    - Add Component: LeaderboardManager.cs
+    Note: Uses DontDestroyOnLoad, persists between scenes
+
+================================================================================
+                              4. BALL SETUP
+================================================================================
+
+Create the Ball prefab:
+
+1. Create a Circle Sprite (right-click in Hierarchy > 2D Object > Sprites > Circle)
+2. Name it "Ball"
+3. Set Tag to "Player"
+4. Add Components:
+    - Rigidbody2D
+        * Body Type: Dynamic
+        * Gravity Scale: 0 (will be set by script)
+        * Collision Detection: Continuous
+        * Freeze Rotation Z: true (optional)
+    - CircleCollider2D
+        * Is Trigger: false
+    - SimpleBallController.cs
+        * Jump Force: 6
+        * Fall Multiplier: 2.5
+        * Max Y: 4.5
+        * Min Y: -4.5
+    - BallSquashStretch.cs (optional, for polish)
+5. Set position to starting location (e.g., X: -3, Y: 0)
+6. Save as Prefab in Assets/Prefabs folder
+
+================================================================================
+                           5. PLATFORM PREFABS
+================================================================================
+
+Create TWO platform prefabs (TopPlatform and BottomPlatform):
+
+TOP PLATFORM:
+1. Create a Rectangle Sprite (2D Object > Sprites > Square)
+2. Scale to wide rectangle (e.g., Scale X: 2, Y: 5)
+3. Set Tag to "Platform"
+4. Add Components:
+    - BoxCollider2D (auto-sized)
+    - PlatformObstacle.cs
+        * Destroy X Position: -12
+5. Save as "TopPlatform" prefab
+
+BOTTOM PLATFORM:
+1. Duplicate TopPlatform
+2. Rename to "BottomPlatform"
+3. Save as separate prefab
+
+PLATFORM SPAWNER SETUP:
+1. Select PlatformSpawner GameObject
+2. Add Component: PlatformSpawner.cs
+3. Assign:
+    - Top Platform Prefab: TopPlatform
+    - Bottom Platform Prefab: BottomPlatform
+4. Settings:
+    - Spawn Interval: 2 (seconds)
+    - Spawn X Position: 12 (off-screen right)
+    - Gap Size: 3 (space between platforms)
+    - Min Gap Y: -2
+    - Max Gap Y: 2
+    - Screen Height: 10
+
+================================================================================
+                           6. BOUNDARY SETUP
+================================================================================
+
+GROUND (Bottom Boundary):
+1. Create Rectangle Sprite
+2. Position at bottom of play area (Y: -5)
+3. Scale to cover screen width
+4. Set Tag to "Ground"
+5. Add BoxCollider2D
+
+CEILING (Top Boundary):
+1. Create Rectangle Sprite
+2. Position at top of play area (Y: 5)
+3. Scale to cover screen width
+4. Set Tag to "Ceiling"
+5. Add BoxCollider2D
+
+================================================================================
+                         7. POWER-UP PREFABS
+================================================================================
+
+Create THREE power-up prefabs:
+
+SHIELD POWER-UP:
+1. Create Circle Sprite (colored cyan/blue)
+2. Add Components:
+    - CircleCollider2D
+        * Is Trigger: true
+    - ShieldPowerUp.cs
+        * Duration: 10 (seconds)
+        * Power Up Color: Cyan
+3. Save as "ShieldPowerUp" prefab
+
+SLOW MOTION POWER-UP:
+1. Create Circle Sprite (colored purple)
+2. Add Components:
+    - CircleCollider2D
+        * Is Trigger: true
+    - SlowMotionPowerUp.cs
+        * Duration: 5 (seconds)
+        * Slow Time Scale: 0.5
+        * Power Up Color: Magenta
+3. Save as "SlowMotionPowerUp" prefab
+
+SCORE MULTIPLIER POWER-UP:
+1. Create Circle Sprite (colored gold/yellow)
+2. Add Components:
+    - CircleCollider2D
+        * Is Trigger: true
+    - ScoreMultiplierPowerUp.cs
+        * Duration: 8 (seconds)
+        * Score Multiplier: 2
+        * Power Up Color: Yellow
+3. Save as "ScoreMultiplierPowerUp" prefab
+
+================================================================================
+                              8. UI SETUP
+================================================================================
+
+Create a Canvas with the following structure:
+
+CANVAS:
+    - Canvas Scaler: Scale With Screen Size
+    - Reference Resolution: 1920x1080
+
+    START PANEL (Panel):
+        - Center of screen
+        - Contains:
+            * Title Text ("Flappy Ball")
+            * "Tap to Play" instruction text
+            * Play Button (optional)
+
+    GAME OVER PANEL (Panel):
+        - Center of screen
+        - Initially inactive
+        - Contains:
+            * "Game Over" text
+            * Final Score Text
+            * Restart Button
+            * Leaderboard Button
+
+    SCORE TEXT (TextMeshPro):
+        - Top center of screen
+        - Shows current score
+
+    NAME ENTRY PANEL (Panel):
+        - Center of screen
+        - Initially inactive
+        - Contains:
+            * "New High Score!" text
+            * TMP_InputField for name
+            * Submit Button
+
+    LEADERBOARD PANEL (Panel):
+        - Center or side of screen
+        - Initially inactive
+        - Contains:
+            * Title "Leaderboard"
+            * Entry Container (Vertical Layout Group)
+            * Close Button
+
+    LEADERBOARD ENTRY PREFAB:
+        - Horizontal layout with:
+            * Rank Text
+            * Name Text
+            * Score Text
+            * Date Text
+        - Save as prefab
+
+UI MANAGER SETUP:
+1. Add UIManager.cs to Canvas or separate GameObject
+2. Assign all panel and text references
+
+LEADERBOARD UI SETUP:
+1. Add LeaderboardUI.cs to Canvas or LeaderboardPanel
+2. Assign:
+    - Leaderboard Panel
+    - Entry Container
+    - Entry Prefab
+    - Name Input Field
+    - Name Entry Panel
+    - Submit/Close Buttons
+
+================================================================================
+                        9. AUTO SCORE SYSTEM
+================================================================================
+
+1. Create Empty GameObject named "AutoScoreSystem"
+2. Add Component: AutoScoreSystem.cs
+3. Settings:
+    - Score Interval: 1 (second)
+    - Points Per Interval: 1
+
+================================================================================
+                           10. CAMERA SETUP
+================================================================================
+
+1. Select Main Camera
+2. Set:
+    - Projection: Orthographic
+    - Size: 5 (adjust as needed)
+    - Background: Your preferred color/gradient
+3. Position: X: 0, Y: 0, Z: -10
+
+================================================================================
+                        11. RECOMMENDED VALUES
+================================================================================
+
+GAME BALANCE:
+    - Jump Force: 6
+    - Gravity: -9.81 (default)
+    - Fall Multiplier: 2.5
+    - Game Speed: 3
+    - Platform Spawn Interval: 2
+    - Gap Size: 3
+    - Score Interval: 1 second
+
+POWER-UP SETTINGS:
+    Shield:
+        - Duration: 10 seconds
+        - Color: Cyan
+
+    Slow Motion:
+        - Duration: 5 seconds
+        - Time Scale: 0.5
+        - Color: Magenta
+
+    Score Multiplier:
+        - Duration: 8 seconds
+        - Multiplier: 2x
+        - Color: Yellow
+
+SPAWNER SETTINGS:
+    - Power-up Spawn Chance: 15%
+    - Min Spawn Interval: 5 seconds
+
+================================================================================
+                       12. TESTING CHECKLIST
+================================================================================
+
+[ ] Ball responds to tap/click/spacebar
+[ ] Game starts on first tap
+[ ] Ball falls with gravity after game starts
+[ ] Platforms spawn and move left
+[ ] Collision with platforms triggers game over
+[ ] Shield power-up prevents one death
+[ ] Slow motion reduces game speed
+[ ] Score multiplier doubles points
+[ ] Score increments automatically
+[ ] Leaderboard saves and loads correctly
+[ ] High score prompt appears for qualifying scores
+[ ] UI transitions work correctly
+[ ] Restart button reloads scene
+
+================================================================================
+                           13. LAYER SETUP
+================================================================================
+
+Recommended Layers (optional, for collision matrix):
+    - Default (0)
+    - Player (8)
+    - Platforms (9)
+    - PowerUps (10)
+    - UI (5)
+
+Collision Matrix:
+    - Player collides with: Platforms, Default
+    - PowerUps collides with: Player only (as triggers)
+
+================================================================================
+                          14. BUILD SETTINGS
+================================================================================
+
+For mobile builds:
+1. Player Settings > Resolution:
+    - Default Orientation: Portrait or Landscape
+    - Auto Rotation: Disabled (recommended)
+
+2. Quality Settings:
+    - VSync: Don't Sync (for mobile)
+    - Target Frame Rate: 60
+
+3. Input:
+    - Touch input is handled automatically by SimpleBallController
+
+================================================================================
+                              SCRIPT FILES
+================================================================================
+
+Core Scripts:
+    - SimpleBallController.cs
+    - PlatformSpawner.cs
+    - PlatformObstacle.cs
+    - AutoScoreSystem.cs
+    - BallSquashStretch.cs (optional)
+
+Manager Scripts:
+    - GameManager.cs
+    - PowerUpManager.cs
+    - LeaderboardManager.cs
+    - UIManager.cs
+
+Power-Up Scripts:
+    - PowerUpBase.cs (abstract)
+    - PowerUpSpawner.cs
+    - ShieldPowerUp.cs
+    - ShieldEffect.cs
+    - SlowMotionPowerUp.cs
+    - SlowMotionEffect.cs
+    - ScoreMultiplierPowerUp.cs
+    - ScoreMultiplierEffect.cs
+
+UI Scripts:
+    - LeaderboardUI.cs
+
+================================================================================
+                              DATA STORAGE
+================================================================================
+
+Leaderboard data is stored in PlayerPrefs:
+    - Key: "FlappyBallLeaderboard"
+    - Format: JSON
+    - Max Entries: 10
+    - Sorted by score descending
+
+To clear leaderboard for testing:
+    PlayerPrefs.DeleteKey("FlappyBallLeaderboard");
+    PlayerPrefs.Save();
+
+================================================================================
