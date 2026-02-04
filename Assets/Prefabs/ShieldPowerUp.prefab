@@ -18,7 +18,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &6736119035547632394
 Transform:
   m_ObjectHideFlags: 0
@@ -28,7 +28,7 @@ Transform:
   m_GameObject: {fileID: 6107977540321017124}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 429.5, y: 252, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -78,8 +78,8 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
-  m_Sprite: {fileID: -2413806693520163455, guid: a86470a33a6bf42c4b3595704624658b, type: 3}
-  m_Color: {r: 0.023584902, g: 0.92422414, b: 1, a: 0.36862746}
+  m_Sprite: {fileID: 10913, guid: 0000000000000000f000000000000000, type: 0}
+  m_Color: {r: 0.06304721, g: 0.8273356, b: 0.9547169, a: 0.47058824}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
@@ -137,14 +137,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 53740c1b22ec43b4bbfa2b292173e292, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  duration: 10
-  moveSpeed: 0
+  overrideSpeed: 0
   destroyXPosition: -12
-  collectEffect: {fileID: 0}
-  powerUpColor: {r: 0.022249907, g: 0.880989, b: 0.9433962, a: 1}
   rotationSpeed: 90
   bobAmplitude: 0.2
   bobSpeed: 2
   collectSound: {fileID: 0}
-  collectVolume: 1
-  shieldEffectPrefab: {fileID: 0}
+  shieldColor: {r: 0.058490515, g: 1, b: 1, a: 1}

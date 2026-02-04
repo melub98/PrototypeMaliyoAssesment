@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 1829166628842886616}
   - component: {fileID: 7778135639214659301}
   - component: {fileID: 4888426640451936406}
-  - component: {fileID: 5064853180782893616}
+  - component: {fileID: 1174224902329144481}
   m_Layer: 0
   m_Name: SlowMotionPowerUp
   m_TagString: Untagged
@@ -79,7 +79,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_Sprite: {fileID: -2413806693520163455, guid: a86470a33a6bf42c4b3595704624658b, type: 3}
-  m_Color: {r: 0.3994345, g: 0.02352941, b: 1, a: 0.36862746}
+  m_Color: {r: 0.02352941, g: 0.37981778, b: 1, a: 0.36862746}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
@@ -125,7 +125,7 @@ CircleCollider2D:
   m_CompositeOrder: 0
   m_Offset: {x: 0, y: 0}
   m_Radius: 0.5
---- !u!114 &5064853180782893616
+--- !u!114 &1174224902329144481
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -134,17 +134,13 @@ MonoBehaviour:
   m_GameObject: {fileID: 4887669068219768892}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: eb951233a4f0a6145a6f5e14cc8e5c98, type: 3}
+  m_Script: {fileID: 11500000, guid: 53740c1b22ec43b4bbfa2b292173e292, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  duration: 5
-  moveSpeed: 0
+  overrideSpeed: 0
   destroyXPosition: -12
-  collectEffect: {fileID: 0}
-  powerUpColor: {r: 0.72409886, g: 0.031149892, b: 0.9433962, a: 1}
   rotationSpeed: 90
   bobAmplitude: 0.2
   bobSpeed: 2
   collectSound: {fileID: 0}
-  collectVolume: 1
-  slowTimeScale: 0.5
+  shieldColor: {r: 0, g: 1, b: 1, a: 1}

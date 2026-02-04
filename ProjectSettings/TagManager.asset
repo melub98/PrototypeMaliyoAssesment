@@ -7,6 +7,7 @@ TagManager:
   - Ceiling
   - Ground
   - Platform
+  - Boundary
   layers:
   - Default
   - TransparentFX
@@ -43,6 +44,21 @@ TagManager:
   m_SortingLayers:
   - name: Default
     uniqueID: 0
+    locked: 0
+  - name: Background
+    uniqueID: 1932239853
+    locked: 0
+  - name: HoopBack
+    uniqueID: 1583642337
+    locked: 0
+  - name: Player
+    uniqueID: 1162358187
+    locked: 0
+  - name: HoopFront
+    uniqueID: 3189846211
+    locked: 0
+  - name: UI
+    uniqueID: 621314565
     locked: 0
   m_RenderingLayers:
   - Default
