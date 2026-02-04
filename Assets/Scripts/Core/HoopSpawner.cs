@@ -2,60 +2,45 @@ using UnityEngine;
 
 /// <summary>
 /// Spawns basketball hoops at regular intervals.
-/// Hoops spawn at random angles and positions.
-/// Progressive difficulty: moving hoops appear after certain score thresholds.
+/// Supports horizontal (0°) and vertical (90°) hoops plus angled variations.
+/// Scales hoops based on difficulty (smaller = harder).
 /// </summary>
 public class HoopSpawner : MonoBehaviour
 {
     public static HoopSpawner Instance { get; private set; }
 
     [Header("Hoop Prefab")]
-    [Tooltip("The hoop prefab to spawn")]
     [SerializeField] private GameObject hoopPrefab;
 
     [Header("Spawn Settings")]
-    [Tooltip("Time between hoop spawns")]
     [SerializeField] private float spawnInterval = 2f;
-
-    [Tooltip("X position where hoops spawn")]
     [SerializeField] private float spawnXPosition = 12f;
 
     [Header("Position Settings")]
-    [Tooltip("Minimum Y position for hoop")]
     [SerializeField] private float minY = -2f;
-
-    [Tooltip("Maximum Y position for hoop")]
     [SerializeField] private float maxY = 2f;
 
     [Header("Rotation Settings")]
-    [Tooltip("Possible rotation angles for hoops (horizontal = 0)")]
-    [SerializeField] private float[] easyRotations = { -15f, 0f, 15f };
-    [SerializeField] private float[] mediumRotations = { -30f, -15f, 0f, 15f, 30f };
-    [SerializeField] private float[] hardRotations = { -45f, -30f, -15f, 0f, 15f, 30f, 45f };
+    [Tooltip("Horizontal (0°) and Vertical (90°) plus variations")]
+    [SerializeField] private float[] easyRotations = { 0f, 0f, 0f, 15f, -15f };
+    [SerializeField] private float[] mediumRotations = { 0f, 90f, 30f, -30f, 45f, -45f };
+    [SerializeField] private float[] hardRotations = { 0f, 90f, 45f, -45f, 60f, -60f, 75f, -75f, 90f };
+
+    [Header("Hoop Scaling")]
+    [SerializeField] private float currentHoopScale = 1f;
 
     [Header("Progressive Difficulty")]
-    [Tooltip("Score threshold when moving hoops start appearing")]
     [SerializeField] private int movingHoopScoreThreshold = 10;
-
-    [Tooltip("Chance for moving hoop after threshold (0-100)")]
     [SerializeField] private float movingHoopChance = 30f;
-
-    [Tooltip("Movement range for moving hoops")]
     [SerializeField] private float hoopMoveRange = 1f;
-
-    [Tooltip("Movement speed for moving hoops")]
     [SerializeField] private float hoopMoveSpeed = 1.5f;
 
     [Header("Shield Power-Up")]
-    [Tooltip("Shield power-up prefab")]
     [SerializeField] private GameObject shieldPrefab;
-
-    [Tooltip("Chance to spawn shield (0-100)")]
+    [Tooltip("Higher chance for power-ups (0-100)")]
     [Range(0f, 100f)]
-    [SerializeField] private float shieldSpawnChance = 15f;
-
-    [Tooltip("Minimum time between shield spawns")]
-    [SerializeField] private float minShieldInterval = 8f;
+    [SerializeField] private float shieldSpawnChance = 30f;
+    [SerializeField] private float minShieldInterval = 5f;
 
     // State
     private float spawnTimer = 0f;
@@ -63,8 +48,6 @@ public class HoopSpawner : MonoBehaviour
     private bool isSpawning = false;
     private int currentDifficulty = 1;
     private int hoopsSpawned = 0;
-
-    // Base values
     private float baseSpawnInterval;
 
     void Awake()
@@ -125,13 +108,13 @@ public class HoopSpawner : MonoBehaviour
         lastShieldSpawnTime = Time.time;
         hoopsSpawned = 0;
 
-        // Get current difficulty
         if (DifficultyManager.Instance != null)
         {
             currentDifficulty = DifficultyManager.Instance.GetDifficulty();
+            currentHoopScale = DifficultyManager.Instance.GetHoopScale();
         }
 
-        Debug.Log("HoopSpawner: Started spawning hoops");
+        Debug.Log($"HoopSpawner: Started - Difficulty={currentDifficulty}, HoopScale={currentHoopScale}");
     }
 
     void OnGameOver()
@@ -143,21 +126,19 @@ public class HoopSpawner : MonoBehaviour
     {
         if (hoopPrefab == null) return;
 
-        // Random Y position
         float yPos = Random.Range(minY, maxY);
-
-        // Get rotation based on difficulty
         float angle = GetRandomRotation();
 
-        // Spawn position and rotation
         Vector3 spawnPos = new Vector3(spawnXPosition, yPos, 0f);
         Quaternion rotation = Quaternion.Euler(0f, 0f, angle);
 
-        // Instantiate hoop
         GameObject hoop = Instantiate(hoopPrefab, spawnPos, rotation);
         hoop.name = "Hoop";
 
-        // Check if this hoop should move (progressive difficulty)
+        // Apply scale based on difficulty
+        hoop.transform.localScale = Vector3.one * currentHoopScale;
+
+        // Check if this hoop should move
         HoopController hoopController = hoop.GetComponent<HoopController>();
         if (hoopController != null && ShouldHoopMove())
         {
@@ -167,10 +148,10 @@ public class HoopSpawner : MonoBehaviour
 
         hoopsSpawned++;
 
-        // Try to spawn shield power-up
+        // Try to spawn shield (more frequent now)
         TrySpawnShield(spawnPos);
 
-        Debug.Log($"HoopSpawner: Spawned hoop #{hoopsSpawned} at Y={yPos:F1}, angle={angle}°");
+        Debug.Log($"HoopSpawner: Spawned hoop #{hoopsSpawned} at Y={yPos:F1}, angle={angle}°, scale={currentHoopScale}");
     }
 
     float GetRandomRotation()
@@ -179,13 +160,13 @@ public class HoopSpawner : MonoBehaviour
 
         switch (currentDifficulty)
         {
-            case 0: // Easy
+            case 0:
                 rotations = easyRotations;
                 break;
-            case 2: // Hard
+            case 2:
                 rotations = hardRotations;
                 break;
-            default: // Medium
+            default:
                 rotations = mediumRotations;
                 break;
         }
@@ -203,11 +184,8 @@ public class HoopSpawner : MonoBehaviour
         if (GameManager.Instance == null) return false;
 
         int currentScore = GameManager.Instance.GetScore();
-
-        // Only start moving hoops after threshold
         if (currentScore < movingHoopScoreThreshold) return false;
 
-        // Random chance
         return Random.Range(0f, 100f) < movingHoopChance;
     }
 
@@ -220,8 +198,8 @@ public class HoopSpawner : MonoBehaviour
         if (Random.Range(0f, 100f) > shieldSpawnChance) return;
 
         float offsetY = Random.Range(-1f, 1f);
-        float offsetX = Random.Range(-1f, 1f);
-        Vector3 shieldPos = hoopPos + new Vector3(offsetX, offsetY, 0f);
+        float offsetX = Random.Range(0.5f, 2f);
+        Vector3 shieldPos = hoopPos + new Vector3(-offsetX, offsetY, 0f);
 
         Instantiate(shieldPrefab, shieldPos, Quaternion.identity);
         lastShieldSpawnTime = Time.time;
@@ -239,6 +217,11 @@ public class HoopSpawner : MonoBehaviour
     public void SetDifficulty(int difficulty)
     {
         currentDifficulty = Mathf.Clamp(difficulty, 0, 2);
+    }
+
+    public void SetHoopScale(float scale)
+    {
+        currentHoopScale = Mathf.Clamp(scale, 0.5f, 2f);
     }
 
     public void ResetToBaseValues()

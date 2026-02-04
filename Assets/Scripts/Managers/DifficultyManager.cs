@@ -4,8 +4,8 @@ using TMPro;
 
 /// <summary>
 /// Manages game difficulty settings for Flappy Jump.
-/// Controls: game speed, hoop spawn rate, ball size, and hoop rotations.
-/// Ball is smaller on Easy (easier to fit through) and larger on Hard.
+/// Controls: game speed, hoop spawn rate, hoop size (smaller = harder).
+/// Ball size stays constant - only hoop size changes.
 /// </summary>
 public class DifficultyManager : MonoBehaviour
 {
@@ -15,28 +15,25 @@ public class DifficultyManager : MonoBehaviour
     [SerializeField] private Slider difficultySlider;
     [SerializeField] private TextMeshProUGUI difficultyText;
 
-    [Header("Easy Settings")]
+    [Header("Easy Settings (Larger Hoops)")]
     [SerializeField] private float easyGameSpeed = 2.5f;
     [SerializeField] private float easySpawnInterval = 2.5f;
-    [SerializeField] private float easyBallScale = 0.8f;
+    [SerializeField] private float easyHoopScale = 1.3f;
 
     [Header("Medium Settings")]
     [SerializeField] private float mediumGameSpeed = 3.5f;
     [SerializeField] private float mediumSpawnInterval = 2f;
-    [SerializeField] private float mediumBallScale = 1f;
+    [SerializeField] private float mediumHoopScale = 1f;
 
-    [Header("Hard Settings")]
-    [SerializeField] private float hardGameSpeed = 5f;
+    [Header("Hard Settings (Smaller Hoops)")]
+    [SerializeField] private float hardGameSpeed = 4.5f;
     [SerializeField] private float hardSpawnInterval = 1.5f;
-    [SerializeField] private float hardBallScale = 1.2f;
-
-    [Header("Ball Reference")]
-    [Tooltip("Reference to the player ball to scale")]
-    [SerializeField] private Transform ballTransform;
+    [SerializeField] private float hardHoopScale = 0.75f;
 
     private int currentDifficulty = 1;
     private readonly string[] difficultyNames = { "Easy", "Medium", "Hard" };
-    private Vector3 originalBallScale;
+
+    public int CurrentDifficulty => currentDifficulty;
 
     void Awake()
     {
@@ -53,23 +50,6 @@ public class DifficultyManager : MonoBehaviour
 
     void Start()
     {
-        // Find ball if not assigned
-        if (ballTransform == null)
-        {
-            GameObject ball = GameObject.FindGameObjectWithTag("Player");
-            if (ball != null)
-            {
-                ballTransform = ball.transform;
-            }
-        }
-
-        // Store original scale
-        if (ballTransform != null)
-        {
-            originalBallScale = ballTransform.localScale;
-        }
-
-        // Setup slider
         if (difficultySlider != null)
         {
             difficultySlider.minValue = 0;
@@ -113,24 +93,21 @@ public class DifficultyManager : MonoBehaviour
 
     public void ApplyDifficulty()
     {
-        float gameSpeed, spawnInterval, ballScale;
+        float gameSpeed, spawnInterval;
 
         switch (currentDifficulty)
         {
             case 0: // Easy
                 gameSpeed = easyGameSpeed;
                 spawnInterval = easySpawnInterval;
-                ballScale = easyBallScale;
                 break;
             case 2: // Hard
                 gameSpeed = hardGameSpeed;
                 spawnInterval = hardSpawnInterval;
-                ballScale = hardBallScale;
                 break;
             default: // Medium
                 gameSpeed = mediumGameSpeed;
                 spawnInterval = mediumSpawnInterval;
-                ballScale = mediumBallScale;
                 break;
         }
 
@@ -145,37 +122,19 @@ public class DifficultyManager : MonoBehaviour
         {
             HoopSpawner.Instance.SetSpawnInterval(spawnInterval);
             HoopSpawner.Instance.SetDifficulty(currentDifficulty);
+            HoopSpawner.Instance.SetHoopScale(GetHoopScale());
         }
 
-        // Apply ball scale
-        ApplyBallScale(ballScale);
-
-        Debug.Log($"Difficulty: {difficultyNames[currentDifficulty]} - Speed={gameSpeed}, Interval={spawnInterval}, BallScale={ballScale}");
+        Debug.Log($"Difficulty: {difficultyNames[currentDifficulty]} - Speed={gameSpeed}, Interval={spawnInterval}, HoopScale={GetHoopScale()}");
     }
 
-    void ApplyBallScale(float scaleMultiplier)
+    public float GetHoopScale()
     {
-        if (ballTransform == null)
+        switch (currentDifficulty)
         {
-            // Try to find ball again
-            GameObject ball = GameObject.FindGameObjectWithTag("Player");
-            if (ball != null)
-            {
-                ballTransform = ball.transform;
-                originalBallScale = Vector3.one; // Assume default scale
-            }
-        }
-
-        if (ballTransform != null)
-        {
-            ballTransform.localScale = originalBallScale * scaleMultiplier;
-
-            // Also update the collider radius if it's a CircleCollider2D
-            CircleCollider2D circleCol = ballTransform.GetComponent<CircleCollider2D>();
-            if (circleCol != null)
-            {
-                // The collider scales with the transform, so no need to manually adjust
-            }
+            case 0: return easyHoopScale;
+            case 2: return hardHoopScale;
+            default: return mediumHoopScale;
         }
     }
 
@@ -194,14 +153,4 @@ public class DifficultyManager : MonoBehaviour
 
     public int GetDifficulty() => currentDifficulty;
     public string GetDifficultyName() => difficultyNames[currentDifficulty];
-
-    public float GetBallScale()
-    {
-        switch (currentDifficulty)
-        {
-            case 0: return easyBallScale;
-            case 2: return hardBallScale;
-            default: return mediumBallScale;
-        }
-    }
 }

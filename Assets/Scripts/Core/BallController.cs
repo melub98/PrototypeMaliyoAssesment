@@ -5,8 +5,8 @@ using System.Collections.Generic;
 
 /// <summary>
 /// Controls the player's ball in Flappy Jump.
-/// Handles jump mechanics, physics, shield integration, and input.
-/// Game starts when Play button is clicked.
+/// Ball maintains fixed X position (moves with screen scroll).
+/// Handles jump mechanics, physics, and shield integration.
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(CircleCollider2D))]
@@ -15,17 +15,15 @@ public class BallController : MonoBehaviour
     #region Serialized Fields
 
     [Header("Movement")]
-    [Tooltip("Upward force applied when player taps")]
     [SerializeField] private float jumpForce = 6f;
-
-    [Tooltip("Gravity multiplier for snappier falling")]
     [SerializeField] private float fallMultiplier = 2.5f;
 
-    [Header("Rotation")]
-    [Tooltip("How quickly the ball rotates based on velocity")]
-    [SerializeField] private float rotationSpeed = 5f;
+    [Header("Position Lock")]
+    [Tooltip("X position where ball stays (moves with screen)")]
+    [SerializeField] private float lockedXPosition = -3f;
 
-    [Tooltip("Maximum rotation angle")]
+    [Header("Rotation")]
+    [SerializeField] private float rotationSpeed = 5f;
     [SerializeField] private float maxRotation = 45f;
 
     [Header("Audio")]
@@ -34,7 +32,6 @@ public class BallController : MonoBehaviour
     [SerializeField] private AudioClip shieldBlockSound;
 
     [Header("Visual")]
-    [Tooltip("Sprite shown when shield is active")]
     [SerializeField] private GameObject shieldVisual;
 
     #endregion
@@ -43,7 +40,6 @@ public class BallController : MonoBehaviour
 
     private Rigidbody2D rb;
     private AudioSource audioSource;
-    private SpriteRenderer spriteRenderer;
 
     private InputAction jumpAction;
     private InputAction touchAction;
@@ -77,7 +73,6 @@ public class BallController : MonoBehaviour
     {
         rb = GetComponent<Rigidbody2D>();
         audioSource = GetComponent<AudioSource>();
-        spriteRenderer = GetComponent<SpriteRenderer>();
 
         if (audioSource == null)
         {
@@ -86,12 +81,12 @@ public class BallController : MonoBehaviour
         }
 
         startPosition = transform.position;
+        lockedXPosition = startPosition.x;
         SetupInputActions();
     }
 
     void Start()
     {
-        // Ball hovers until game starts
         rb.gravityScale = 0;
         rb.linearVelocity = Vector2.zero;
 
@@ -127,6 +122,7 @@ public class BallController : MonoBehaviour
         if (GameManager.Instance != null && GameManager.Instance.IsPlaying && !isDead)
         {
             HandleRotation();
+            LockHorizontalPosition();
         }
     }
 
@@ -211,7 +207,6 @@ public class BallController : MonoBehaviour
     {
         if (isDead) return;
 
-        // Only jump if game is playing
         if (GameManager.Instance != null && GameManager.Instance.IsPlaying)
         {
             Jump();
@@ -234,6 +229,20 @@ public class BallController : MonoBehaviour
         transform.rotation = Quaternion.Euler(0, 0, targetRotation);
     }
 
+    /// <summary>
+    /// Keeps ball at fixed X position so it moves with the screen scroll.
+    /// </summary>
+    void LockHorizontalPosition()
+    {
+        Vector3 pos = transform.position;
+        if (Mathf.Abs(pos.x - lockedXPosition) > 0.01f)
+        {
+            pos.x = lockedXPosition;
+            transform.position = pos;
+            rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
+        }
+    }
+
     #endregion
 
     #region Game State
@@ -249,7 +258,6 @@ public class BallController : MonoBehaviour
         transform.rotation = Quaternion.identity;
         rb.linearVelocity = Vector2.zero;
 
-        // Initial jump
         Jump();
     }
 
@@ -269,32 +277,24 @@ public class BallController : MonoBehaviour
         if (isDead) return;
         if (GameManager.Instance == null || !GameManager.Instance.IsPlaying) return;
 
-        // Boundary collision (ceiling/floor)
         if (collision.gameObject.CompareTag("Boundary"))
         {
             HandleBoundaryHit();
         }
     }
 
-    /// <summary>
-    /// Handles collision with ceiling or floor.
-    /// </summary>
     void HandleBoundaryHit()
     {
         if (hasShield)
         {
-            // Shield absorbs the hit
             hasShield = false;
             UpdateShieldVisual();
             PlaySound(shieldBlockSound);
-
-            // Small bounce
             rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce * 0.5f);
             Debug.Log("BallController: Shield absorbed boundary hit");
             return;
         }
 
-        // No shield - game over
         PlaySound(deathSound);
         GameManager.Instance?.GameOver();
     }
@@ -303,9 +303,6 @@ public class BallController : MonoBehaviour
 
     #region Shield
 
-    /// <summary>
-    /// Grants shield to the player.
-    /// </summary>
     public void GrantShield()
     {
         hasShield = true;
@@ -313,9 +310,6 @@ public class BallController : MonoBehaviour
         Debug.Log("BallController: Shield granted");
     }
 
-    /// <summary>
-    /// Attempts to use shield. Returns true if shield was consumed.
-    /// </summary>
     public bool UseShield()
     {
         if (hasShield)

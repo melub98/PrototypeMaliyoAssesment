@@ -2,28 +2,20 @@ using UnityEngine;
 using System;
 
 /// <summary>
-/// Data structure for storing personal best scores.
-/// Tracks today's best, this week's best, and all-time best.
+/// Data structure for storing personal best scores per difficulty.
+/// Each difficulty (Easy, Medium, Hard) has its own set of bests.
 /// </summary>
 [System.Serializable]
-public class PersonalBestData
+public class DifficultyBestData
 {
-    // Today's best score
     public int todayBest;
-    // Date when today's best was set (to reset daily)
     public string todayDate;
-
-    // This week's best score
     public int weekBest;
-    // Week number when week's best was set (to reset weekly)
     public int weekNumber;
-    // Year of the week (to handle year transitions)
     public int weekYear;
-
-    // All-time best score
     public int allTimeBest;
 
-    public PersonalBestData()
+    public DifficultyBestData()
     {
         todayBest = 0;
         todayDate = "";
@@ -35,27 +27,31 @@ public class PersonalBestData
 }
 
 /// <summary>
-/// Manages personal best scores: today, this week, and all-time.
-/// Automatically resets daily and weekly bests when appropriate.
-/// Uses PlayerPrefs to persist data between sessions.
+/// Container for all difficulty leaderboards.
+/// </summary>
+[System.Serializable]
+public class AllLeaderboardData
+{
+    public DifficultyBestData easyBests = new DifficultyBestData();
+    public DifficultyBestData mediumBests = new DifficultyBestData();
+    public DifficultyBestData hardBests = new DifficultyBestData();
+}
+
+/// <summary>
+/// Manages personal best scores for each difficulty level.
+/// Separate leaderboards for Easy, Medium, and Hard.
+/// Tracks: today's best, this week's best, and all-time best.
 /// </summary>
 public class LeaderboardManager : MonoBehaviour
 {
-    // Singleton instance for global access
     public static LeaderboardManager Instance { get; private set; }
 
-    // Key used to store data in PlayerPrefs
-    private const string SAVE_KEY = "FlappyBallPersonalBests";
+    private const string SAVE_KEY = "FlappyJumpLeaderboards";
 
-    // Personal best data
-    private PersonalBestData data;
+    private AllLeaderboardData allData;
 
-    /// <summary>
-    /// Unity Awake - sets up singleton and loads saved data.
-    /// </summary>
     void Awake()
     {
-        // Singleton pattern
         if (Instance == null)
         {
             Instance = this;
@@ -70,7 +66,20 @@ public class LeaderboardManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Checks if daily or weekly periods have passed and resets scores accordingly.
+    /// Gets the data for a specific difficulty.
+    /// </summary>
+    DifficultyBestData GetDataForDifficulty(int difficulty)
+    {
+        switch (difficulty)
+        {
+            case 0: return allData.easyBests;
+            case 2: return allData.hardBests;
+            default: return allData.mediumBests;
+        }
+    }
+
+    /// <summary>
+    /// Checks and resets daily/weekly periods for all difficulties.
     /// </summary>
     void CheckAndResetPeriods()
     {
@@ -78,29 +87,29 @@ public class LeaderboardManager : MonoBehaviour
         int currentWeek = GetWeekOfYear(DateTime.Now);
         int currentYear = DateTime.Now.Year;
 
-        // Check if it's a new day
-        if (data.todayDate != today)
-        {
-            Debug.Log($"LeaderboardManager: New day detected. Resetting today's best. (Old: {data.todayDate}, New: {today})");
-            data.todayBest = 0;
-            data.todayDate = today;
-        }
-
-        // Check if it's a new week
-        if (data.weekNumber != currentWeek || data.weekYear != currentYear)
-        {
-            Debug.Log($"LeaderboardManager: New week detected. Resetting week's best.");
-            data.weekBest = 0;
-            data.weekNumber = currentWeek;
-            data.weekYear = currentYear;
-        }
+        CheckAndResetDifficulty(allData.easyBests, today, currentWeek, currentYear);
+        CheckAndResetDifficulty(allData.mediumBests, today, currentWeek, currentYear);
+        CheckAndResetDifficulty(allData.hardBests, today, currentWeek, currentYear);
 
         SaveData();
     }
 
-    /// <summary>
-    /// Gets the week number for a given date.
-    /// </summary>
+    void CheckAndResetDifficulty(DifficultyBestData data, string today, int currentWeek, int currentYear)
+    {
+        if (data.todayDate != today)
+        {
+            data.todayBest = 0;
+            data.todayDate = today;
+        }
+
+        if (data.weekNumber != currentWeek || data.weekYear != currentYear)
+        {
+            data.weekBest = 0;
+            data.weekNumber = currentWeek;
+            data.weekYear = currentYear;
+        }
+    }
+
     int GetWeekOfYear(DateTime date)
     {
         var culture = System.Globalization.CultureInfo.CurrentCulture;
@@ -110,41 +119,65 @@ public class LeaderboardManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Submits a score and updates personal bests if applicable.
+    /// Submits a score for the current difficulty.
     /// </summary>
-    /// <param name="score">The score achieved</param>
-    /// <returns>True if any personal best was beaten</returns>
     public bool SubmitScore(int score)
+    {
+        int difficulty = 1;
+        if (DifficultyManager.Instance != null)
+        {
+            difficulty = DifficultyManager.Instance.GetDifficulty();
+        }
+
+        return SubmitScore(score, difficulty);
+    }
+
+    /// <summary>
+    /// Submits a score for a specific difficulty.
+    /// </summary>
+    public bool SubmitScore(int score, int difficulty)
     {
         if (score <= 0) return false;
 
+        DifficultyBestData data = GetDataForDifficulty(difficulty);
         bool beatAnyBest = false;
 
-        // Check and update today's best
+        string today = DateTime.Now.ToString("yyyy-MM-dd");
+        int currentWeek = GetWeekOfYear(DateTime.Now);
+        int currentYear = DateTime.Now.Year;
+
+        // Check today's best
+        if (data.todayDate != today)
+        {
+            data.todayBest = 0;
+            data.todayDate = today;
+        }
+
         if (score > data.todayBest)
         {
             data.todayBest = score;
-            data.todayDate = DateTime.Now.ToString("yyyy-MM-dd");
             beatAnyBest = true;
-            Debug.Log($"LeaderboardManager: New today's best: {score}");
         }
 
-        // Check and update week's best
+        // Check week's best
+        if (data.weekNumber != currentWeek || data.weekYear != currentYear)
+        {
+            data.weekBest = 0;
+            data.weekNumber = currentWeek;
+            data.weekYear = currentYear;
+        }
+
         if (score > data.weekBest)
         {
             data.weekBest = score;
-            data.weekNumber = GetWeekOfYear(DateTime.Now);
-            data.weekYear = DateTime.Now.Year;
             beatAnyBest = true;
-            Debug.Log($"LeaderboardManager: New week's best: {score}");
         }
 
-        // Check and update all-time best
+        // Check all-time best
         if (score > data.allTimeBest)
         {
             data.allTimeBest = score;
             beatAnyBest = true;
-            Debug.Log($"LeaderboardManager: New all-time best: {score}");
         }
 
         SaveData();
@@ -152,74 +185,75 @@ public class LeaderboardManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Gets today's best score.
+    /// Gets today's best for current difficulty.
     /// </summary>
     public int GetTodayBest()
     {
+        int difficulty = DifficultyManager.Instance?.GetDifficulty() ?? 1;
+        return GetTodayBest(difficulty);
+    }
+
+    public int GetTodayBest(int difficulty)
+    {
         CheckAndResetPeriods();
-        return data.todayBest;
+        return GetDataForDifficulty(difficulty).todayBest;
     }
 
     /// <summary>
-    /// Gets this week's best score.
+    /// Gets this week's best for current difficulty.
     /// </summary>
     public int GetWeekBest()
     {
+        int difficulty = DifficultyManager.Instance?.GetDifficulty() ?? 1;
+        return GetWeekBest(difficulty);
+    }
+
+    public int GetWeekBest(int difficulty)
+    {
         CheckAndResetPeriods();
-        return data.weekBest;
+        return GetDataForDifficulty(difficulty).weekBest;
     }
 
     /// <summary>
-    /// Gets all-time best score.
+    /// Gets all-time best for current difficulty.
     /// </summary>
     public int GetAllTimeBest()
     {
-        return data.allTimeBest;
+        int difficulty = DifficultyManager.Instance?.GetDifficulty() ?? 1;
+        return GetAllTimeBest(difficulty);
     }
 
-    /// <summary>
-    /// Checks if a score beats any personal best.
-    /// </summary>
-    public bool IsNewPersonalBest(int score)
+    public int GetAllTimeBest(int difficulty)
     {
-        return score > data.todayBest || score > data.weekBest || score > data.allTimeBest;
+        return GetDataForDifficulty(difficulty).allTimeBest;
     }
 
-    /// <summary>
-    /// Saves data to PlayerPrefs.
-    /// </summary>
     private void SaveData()
     {
-        string json = JsonUtility.ToJson(data);
+        string json = JsonUtility.ToJson(allData);
         PlayerPrefs.SetString(SAVE_KEY, json);
         PlayerPrefs.Save();
     }
 
-    /// <summary>
-    /// Loads data from PlayerPrefs.
-    /// </summary>
     private void LoadData()
     {
         if (PlayerPrefs.HasKey(SAVE_KEY))
         {
             string json = PlayerPrefs.GetString(SAVE_KEY);
-            data = JsonUtility.FromJson<PersonalBestData>(json);
-            Debug.Log($"LeaderboardManager: Loaded data - Today: {data.todayBest}, Week: {data.weekBest}, All-Time: {data.allTimeBest}");
+            allData = JsonUtility.FromJson<AllLeaderboardData>(json);
         }
         else
         {
-            data = new PersonalBestData();
-            Debug.Log("LeaderboardManager: No saved data found, starting fresh");
+            allData = new AllLeaderboardData();
         }
     }
 
     /// <summary>
-    /// Clears all personal best data (for testing/reset).
+    /// Clears all leaderboard data.
     /// </summary>
     public void ClearAllData()
     {
-        data = new PersonalBestData();
+        allData = new AllLeaderboardData();
         SaveData();
-        Debug.Log("LeaderboardManager: All data cleared");
     }
 }
