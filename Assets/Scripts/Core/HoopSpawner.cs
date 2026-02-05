@@ -21,6 +21,8 @@ public class HoopSpawner : MonoBehaviour
     [SerializeField] private float maxY = 2f;
 
     [Header("Rotation Settings")]
+    [Tooltip("Base rotation offset applied to all hoops (adjust so opening faces up)")]
+    [SerializeField] private float baseRotationOffset = 0f;
     [Tooltip("Horizontal (0°) and Vertical (90°) plus variations")]
     [SerializeField] private float[] easyRotations = { 0f, 0f, 0f, 15f, -15f };
     [SerializeField] private float[] mediumRotations = { 0f, 90f, 30f, -30f, 45f, -45f };
@@ -127,7 +129,7 @@ public class HoopSpawner : MonoBehaviour
         if (hoopPrefab == null) return;
 
         float yPos = Random.Range(minY, maxY);
-        float angle = GetRandomRotation();
+        float angle = GetRandomRotation() + baseRotationOffset;
 
         Vector3 spawnPos = new Vector3(spawnXPosition, yPos, 0f);
         Quaternion rotation = Quaternion.Euler(0f, 0f, angle);
@@ -221,7 +223,7 @@ public class HoopSpawner : MonoBehaviour
 
     public void SetHoopScale(float scale)
     {
-        currentHoopScale = Mathf.Clamp(scale, 0.5f, 2f);
+        currentHoopScale = Mathf.Clamp(scale, 0.3f, 2f);
     }
 
     public void ResetToBaseValues()

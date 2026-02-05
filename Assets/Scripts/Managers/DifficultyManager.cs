@@ -18,17 +18,17 @@ public class DifficultyManager : MonoBehaviour
     [Header("Easy Settings (Larger Hoops)")]
     [SerializeField] private float easyGameSpeed = 2.5f;
     [SerializeField] private float easySpawnInterval = 2.5f;
-    [SerializeField] private float easyHoopScale = 1.3f;
+    [SerializeField] private float easyHoopScale = 0.6f;
 
     [Header("Medium Settings")]
     [SerializeField] private float mediumGameSpeed = 3.5f;
     [SerializeField] private float mediumSpawnInterval = 2f;
-    [SerializeField] private float mediumHoopScale = 1f;
+    [SerializeField] private float mediumHoopScale = 0.5f;
 
     [Header("Hard Settings (Smaller Hoops)")]
     [SerializeField] private float hardGameSpeed = 4.5f;
     [SerializeField] private float hardSpawnInterval = 1.5f;
-    [SerializeField] private float hardHoopScale = 0.75f;
+    [SerializeField] private float hardHoopScale = 0.4f;
 
     private int currentDifficulty = 1;
     private readonly string[] difficultyNames = { "Easy", "Medium", "Hard" };
