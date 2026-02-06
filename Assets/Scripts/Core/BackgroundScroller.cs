@@ -57,33 +57,27 @@ public class BackgroundScroller : MonoBehaviour
     void Update()
     {
         if (!isScrolling) return;
+        if (background1 == null || background2 == null) return;
 
         float speed = GetScrollSpeed();
         float movement = speed * Time.deltaTime;
 
         // Move both backgrounds left
-        if (background1 != null)
-        {
-            background1.position += Vector3.left * movement;
+        background1.position += Vector3.left * movement;
+        background2.position += Vector3.left * movement;
 
-            // Check if background1 is off-screen left
-            if (background1.position.x <= -backgroundWidth)
-            {
-                // Move it to the right of background2
-                background1.position = background2.position + Vector3.right * backgroundWidth;
-            }
+        // When a background scrolls fully off-screen, wrap it by exactly
+        // 2x the width so there's never a gap between the two images.
+        float doubleWidth = backgroundWidth * 2f;
+
+        if (background1.position.x <= -backgroundWidth)
+        {
+            background1.position += Vector3.right * doubleWidth;
         }
 
-        if (background2 != null)
+        if (background2.position.x <= -backgroundWidth)
         {
-            background2.position += Vector3.left * movement;
-
-            // Check if background2 is off-screen left
-            if (background2.position.x <= -backgroundWidth)
-            {
-                // Move it to the right of background1
-                background2.position = background1.position + Vector3.right * backgroundWidth;
-            }
+            background2.position += Vector3.right * doubleWidth;
         }
     }
 

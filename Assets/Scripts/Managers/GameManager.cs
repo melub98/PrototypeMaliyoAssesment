@@ -13,10 +13,19 @@ public class GameManager : MonoBehaviour
     [Header("Events")]
     public UnityEvent OnGameStart = new UnityEvent();
     public UnityEvent OnGameOver = new UnityEvent();
+    /// <summary>
+    /// Fired when game over UI should be shown (after ball hits floor).
+    /// UIManager listens to this, not OnGameOver, for delayed UI display.
+    /// </summary>
+    public UnityEvent OnShowGameOverUI = new UnityEvent();
     public UnityEvent<int> OnScoreChanged = new UnityEvent<int>();
     public UnityEvent<int> OnMultiplierChanged = new UnityEvent<int>();
     public UnityEvent OnCleanPass = new UnityEvent();
     public UnityEvent OnEdgeTouch = new UnityEvent();
+    /// <summary>
+    /// Fired on every hoop pass. Bool parameter = wasCleanPass.
+    /// </summary>
+    public UnityEvent<bool> OnHoopPassed = new UnityEvent<bool>();
 
     [Header("Settings")]
     [Tooltip("Base speed for hoop movement")]
@@ -97,6 +106,8 @@ public class GameManager : MonoBehaviour
     {
         if (!isPlaying) return;
 
+        OnHoopPassed.Invoke(wasCleanPass);
+
         if (wasCleanPass)
         {
             // Clean pass: award points with current multiplier, then double it
@@ -162,5 +173,15 @@ public class GameManager : MonoBehaviour
         Time.timeScale = 1f;
         UnityEngine.SceneManagement.SceneManager.LoadScene(
             UnityEngine.SceneManagement.SceneManager.GetActiveScene().name);
+    }
+
+    /// <summary>
+    /// Called by BallController when ball hits the floor after death.
+    /// Triggers the game over UI to appear.
+    /// </summary>
+    public void ShowGameOverUI()
+    {
+        OnShowGameOverUI.Invoke();
+        Debug.Log("GameManager: Showing game over UI");
     }
 }

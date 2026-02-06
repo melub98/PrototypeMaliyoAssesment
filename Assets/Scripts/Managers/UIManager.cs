@@ -35,7 +35,21 @@ public class UIManager : MonoBehaviour
     [Header("Instructions")]
     [SerializeField] private TextMeshProUGUI instructionText;
 
+    [Header("Achievements")]
+    [SerializeField] private Button achievementsButton;
+    [SerializeField] private AchievementShowcaseUI achievementShowcase;
+
+    [Header("Fail Indicator")]
+    [Tooltip("X icon shown on screen when player dies or misses a hoop")]
+    [SerializeField] private GameObject failIcon;
+
+    [Tooltip("How long the X icon stays on screen (seconds)")]
+    [SerializeField] private float failIconDuration = 1f;
+
     #endregion
+
+    private float failIconTimer = 0f;
+    private bool gameOverPending = false;
 
     #region Unity Lifecycle
 
@@ -47,7 +61,10 @@ public class UIManager : MonoBehaviour
         {
             GameManager.Instance.OnScoreChanged.AddListener(UpdateScore);
             GameManager.Instance.OnGameStart.AddListener(OnGameStart);
-            GameManager.Instance.OnGameOver.AddListener(OnGameOver);
+            GameManager.Instance.OnGameOver.AddListener(OnDeath);
+            // Listen to OnShowGameOverUI instead of OnGameOver
+            // This delays the UI until ball hits the floor after death
+            GameManager.Instance.OnShowGameOverUI.AddListener(OnGameOver);
         }
 
         InitializeUI();
@@ -57,12 +74,14 @@ public class UIManager : MonoBehaviour
     {
         if (playButton != null) playButton.onClick.RemoveListener(OnPlayButton);
         if (restartButton != null) restartButton.onClick.RemoveListener(OnRestartButton);
+        if (achievementsButton != null) achievementsButton.onClick.RemoveListener(OnAchievementsButton);
 
         if (GameManager.Instance != null)
         {
             GameManager.Instance.OnScoreChanged.RemoveListener(UpdateScore);
             GameManager.Instance.OnGameStart.RemoveListener(OnGameStart);
-            GameManager.Instance.OnGameOver.RemoveListener(OnGameOver);
+            GameManager.Instance.OnGameOver.RemoveListener(OnDeath);
+            GameManager.Instance.OnShowGameOverUI.RemoveListener(OnGameOver);
         }
     }
 
@@ -83,6 +102,12 @@ public class UIManager : MonoBehaviour
             restartButton.onClick.RemoveAllListeners();
             restartButton.onClick.AddListener(OnRestartButton);
         }
+
+        if (achievementsButton != null)
+        {
+            achievementsButton.onClick.RemoveAllListeners();
+            achievementsButton.onClick.AddListener(OnAchievementsButton);
+        }
     }
 
     void InitializeUI()
@@ -90,8 +115,29 @@ public class UIManager : MonoBehaviour
         if (startPanel != null) startPanel.SetActive(true);
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
         if (shieldIndicator != null) shieldIndicator.SetActive(false);
+        if (failIcon != null) failIcon.SetActive(false);
         if (scoreText != null) scoreText.text = "0";
         if (instructionText != null) instructionText.gameObject.SetActive(true);
+    }
+
+    void Update()
+    {
+        // Auto-hide fail icon after duration
+        if (failIconTimer > 0f)
+        {
+            failIconTimer -= Time.deltaTime;
+            if (failIconTimer <= 0f)
+            {
+                if (failIcon != null) failIcon.SetActive(false);
+
+                // Show game over panel now that X has disappeared
+                if (gameOverPending)
+                {
+                    gameOverPending = false;
+                    ShowGameOverPanel();
+                }
+            }
+        }
     }
 
     #endregion
@@ -116,9 +162,37 @@ public class UIManager : MonoBehaviour
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
         if (instructionText != null) instructionText.gameObject.SetActive(false);
         if (shieldIndicator != null) shieldIndicator.SetActive(false);
+        if (failIcon != null) failIcon.SetActive(false);
+        failIconTimer = 0f;
+        gameOverPending = false;
+    }
+
+    /// <summary>
+    /// Called immediately when player dies (miss or boundary hit).
+    /// Shows X icon on screen as immediate feedback.
+    /// </summary>
+    void OnDeath()
+    {
+        if (failIcon != null)
+        {
+            failIcon.SetActive(true);
+            failIconTimer = failIconDuration;
+        }
     }
 
     void OnGameOver()
+    {
+        // If the X icon is still showing, wait for it to disappear first
+        if (failIconTimer > 0f)
+        {
+            gameOverPending = true;
+            return;
+        }
+
+        ShowGameOverPanel();
+    }
+
+    void ShowGameOverPanel()
     {
         if (gameOverPanel != null) gameOverPanel.SetActive(true);
 
@@ -142,6 +216,12 @@ public class UIManager : MonoBehaviour
     {
         Debug.Log("Restart button clicked");
         GameManager.Instance?.RestartGame();
+    }
+
+    public void OnAchievementsButton()
+    {
+        if (achievementShowcase != null)
+            achievementShowcase.ShowPanel();
     }
 
     #endregion

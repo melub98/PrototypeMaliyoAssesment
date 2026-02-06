@@ -6,7 +6,7 @@ PhysicsMaterial2D:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: PM_RimEdge
+  m_Name: PM_Ball
   serializedVersion: 2
   friction: 1
   bounciness: 0
