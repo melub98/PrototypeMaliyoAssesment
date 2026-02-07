@@ -42,6 +42,9 @@ public class GameManager : MonoBehaviour
     private bool isPlaying = false;
     private bool hasStarted = false;
 
+    // Cached player reference for shield checks
+    private BallController playerBall;
+
     // Properties
     public bool IsPlaying => isPlaying;
     public bool HasStarted => hasStarted;
@@ -56,6 +59,10 @@ public class GameManager : MonoBehaviour
         if (Instance == null)
         {
             Instance = this;
+
+            // Cap frame rate to 30 for WebGL browser builds
+            QualitySettings.vSyncCount = 0;
+            Application.targetFrameRate = 30;
         }
         else
         {
@@ -85,10 +92,21 @@ public class GameManager : MonoBehaviour
 
     /// <summary>
     /// Ends the current game session.
+    /// If the player has an active shield, the shield is consumed instead of dying.
     /// </summary>
     public void GameOver()
     {
         if (!isPlaying) return;
+
+        // Shield or invincibility absorbs any death (hoop miss, boundary hit, etc.)
+        if (playerBall == null)
+            playerBall = Object.FindFirstObjectByType<BallController>();
+
+        if (playerBall != null && (playerBall.IsInvincible || playerBall.UseShield()))
+        {
+            Debug.Log("GameManager: Shield/invincibility absorbed death!");
+            return;
+        }
 
         isPlaying = false;
         Time.timeScale = 1f;
@@ -116,7 +134,7 @@ public class GameManager : MonoBehaviour
 
             // Double the multiplier
             int oldMultiplier = currentMultiplier;
-            currentMultiplier *= 2;
+            currentMultiplier += 1;
 
             // Cap multiplier if maxMultiplier is set
             if (maxMultiplier > 0 && currentMultiplier > maxMultiplier)

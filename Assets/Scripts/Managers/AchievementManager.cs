@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.SceneManagement;
 
 [System.Serializable]
 public class AchievementInfo
@@ -49,11 +50,20 @@ public class AchievementManager : MonoBehaviour
     void Start()
     {
         SubscribeEvents();
+        SceneManager.sceneLoaded += OnSceneLoaded;
     }
 
     void OnDestroy()
     {
         UnsubscribeEvents();
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+    }
+
+    void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        // After scene reload, GameManager is a new instance.
+        // Re-subscribe to the new GameManager's events.
+        SubscribeEvents();
     }
 
     void SubscribeEvents()
@@ -80,10 +90,6 @@ public class AchievementManager : MonoBehaviour
     {
         hoopsThisRun = 0;
         consecutiveCleanPasses = 0;
-
-        // Re-subscribe in case scene reloaded and GameManager is new
-        UnsubscribeEvents();
-        SubscribeEvents();
     }
 
     void OnHoopPassed(bool wasClean)
@@ -275,5 +281,18 @@ public class AchievementManager : MonoBehaviour
     public int GetTotalCount()
     {
         return saveData?.achievements?.Length ?? 0;
+    }
+
+    /// <summary>
+    /// Resets all achievements. Call from console or debug UI for testing.
+    /// In editor: call via Inspector context menu on AchievementManager.
+    /// </summary>
+    [ContextMenu("Reset All Achievements")]
+    public void ResetAllAchievements()
+    {
+        PlayerPrefs.DeleteKey(SAVE_KEY);
+        PlayerPrefs.Save();
+        InitializeDefaults();
+        Debug.Log("AchievementManager: All achievements reset!");
     }
 }

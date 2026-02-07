@@ -85,6 +85,17 @@ public class HoopSpawner : MonoBehaviour
     [Tooltip("Movement speed for moving hoops")]
     [SerializeField] private float hoopMoveSpeed = 1.5f;
 
+    [Header("Reverse Hoop")]
+    [Tooltip("Reverse hoop prefab (player enters from opposite direction). Must have HoopController and HoopMover")]
+    [SerializeField] private GameObject reverseHoopPrefab;
+
+    [Tooltip("Score threshold before reverse hoops can appear")]
+    [SerializeField] private int reverseHoopScoreThreshold = 5;
+
+    [Tooltip("Chance (0-100) for a reverse hoop to spawn instead of normal after threshold")]
+    [Range(0f, 100f)]
+    [SerializeField] private float reverseHoopChance = 25f;
+
     [Header("Shield Power-Up")]
     [Tooltip("Shield power-up prefab. Spawns within hoops for collection")]
     [SerializeField] private GameObject shieldPrefab;
@@ -159,6 +170,10 @@ public class HoopSpawner : MonoBehaviour
         if (hoopPrefab == null)
         {
             Debug.LogError("HoopSpawner: No hoop prefab assigned! Hoops will not spawn.");
+        }
+        if (reverseHoopPrefab == null)
+        {
+            Debug.LogWarning("HoopSpawner: No reverse hoop prefab assigned. Reverse hoops will not spawn.");
         }
         if (shieldPrefab == null)
         {
@@ -268,6 +283,10 @@ public class HoopSpawner : MonoBehaviour
         // Validate prefab exists
         if (hoopPrefab == null) return;
 
+        // Determine if this should be a reverse hoop
+        bool isReverse = ShouldSpawnReverseHoop();
+        GameObject prefabToUse = isReverse && reverseHoopPrefab != null ? reverseHoopPrefab : hoopPrefab;
+
         // Random Y position within bounds
         float yPos = Random.Range(minY, maxY);
 
@@ -279,8 +298,8 @@ public class HoopSpawner : MonoBehaviour
         Quaternion rotation = Quaternion.Euler(0f, 0f, angle);
 
         // Instantiate the hoop
-        GameObject hoop = Instantiate(hoopPrefab, spawnPos, rotation);
-        hoop.name = "Hoop"; // Clean name in hierarchy
+        GameObject hoop = Instantiate(prefabToUse, spawnPos, rotation);
+        hoop.name = isReverse ? "ReverseHoop" : "Hoop";
 
         // Apply scale based on difficulty (smaller = harder)
         hoop.transform.localScale = Vector3.one * currentHoopScale;
@@ -290,8 +309,7 @@ public class HoopSpawner : MonoBehaviour
 
         if (hoopController != null)
         {
-            // Apply current multiplier visuals (color + fire effect)
-            // This makes new hoops match the player's current streak
+            // Apply fire effect based on current multiplier streak
             int currentMultiplier = GameManager.Instance != null ?
                 GameManager.Instance.CurrentMultiplier : 1;
             hoopController.SetMultiplierVisuals(currentMultiplier);
@@ -368,6 +386,21 @@ public class HoopSpawner : MonoBehaviour
 
         // Random chance for movement
         return Random.Range(0f, 100f) < movingHoopChance;
+    }
+
+    /// <summary>
+    /// Determines if the next hoop should be a reverse hoop.
+    /// Reverse hoops only appear after player reaches score threshold.
+    /// </summary>
+    bool ShouldSpawnReverseHoop()
+    {
+        if (reverseHoopPrefab == null) return false;
+        if (GameManager.Instance == null) return false;
+
+        int currentScore = GameManager.Instance.GetScore();
+        if (currentScore < reverseHoopScoreThreshold) return false;
+
+        return Random.Range(0f, 100f) < reverseHoopChance;
     }
 
     /// <summary>

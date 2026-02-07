@@ -124,15 +124,12 @@ public class CleanPassEffect : MonoBehaviour
     {
         if (cleanText != null)
         {
-            // Pick random text
-            if (cleanPassTexts != null && cleanPassTexts.Length > 0)
-            {
-                cleanText.text = cleanPassTexts[Random.Range(0, cleanPassTexts.Length)];
-            }
-            else
-            {
-                cleanText.text = "CLEAN!";
-            }
+            // Show "Clean x{multiplier}" with current multiplier
+            int multiplier = 1;
+            if (GameManager.Instance != null)
+                multiplier = GameManager.Instance.GetCurrentMultiplier();
+
+            cleanText.text = $"Clean x{multiplier}";
 
             // Setup initial state
             cleanText.color = new Color(textColor.r, textColor.g, textColor.b, 0f);

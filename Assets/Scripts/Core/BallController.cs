@@ -10,7 +10,7 @@ using System.Collections.Generic;
 /// - Ball maintains a fixed X position while the world scrolls past (classic Flappy Bird style)
 /// - Uses Unity's new Input System for cross-platform input (keyboard, touch, gamepad)
 /// - Implements a shield system that absorbs one boundary hit before game over
-/// - Ball rotates based on velocity for visual feedback of movement direction
+/// - Ball rotates freely via physics (natural rolling on hoop rims)
 /// - Uses extra gravity when falling for snappier, more responsive controls
 ///
 /// ARCHITECTURE:
@@ -18,9 +18,9 @@ using System.Collections.Generic;
 /// - Decoupled from other systems through event-driven communication
 /// - Shield visual is a separate GameObject for easy customization
 ///
-/// COLOR CHANGE FEATURE:
-/// - Ball changes color on clean passes to match the multiplier
-/// - Colors progress from white -> yellow -> orange -> red -> purple as multiplier increases
+/// SPRITE SWAP FEATURE:
+/// - Ball swaps to a different sprite on clean passes to match the multiplier
+/// - Sprites progress through variants as multiplier increases (1x, 2x, 4x, 8x, 16x)
 /// - This provides immediate visual feedback of the player's streak
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
@@ -40,15 +40,12 @@ public class BallController : MonoBehaviour
     [Tooltip("X position where ball stays fixed. World scrolls past while ball stays here")]
     [SerializeField] private float lockedXPosition = -3f;
 
-    [Header("Rotation")]
-    [Tooltip("Max upward tilt angle when rising (degrees)")]
-    [SerializeField] private float maxUpAngle = 30f;
+    [Header("Rim Rolling Physics")]
+    [Tooltip("Forward torque applied on jump (clockwise spin for rolling right)")]
+    [SerializeField] private float jumpTorque = -150f;
 
-    [Tooltip("Max downward tilt angle when falling (degrees)")]
-    [SerializeField] private float maxDownAngle = -60f;
-
-    [Tooltip("How quickly the tilt responds to velocity changes")]
-    [SerializeField] private float tiltSpeed = 5f;
+    [Tooltip("Small rightward push when jumping on hoop rim")]
+    [SerializeField] private float rimPushForce = 1.5f;
 
     [Header("Audio")]
     [SerializeField] private AudioClip jumpSound;
@@ -59,27 +56,15 @@ public class BallController : MonoBehaviour
     [Tooltip("GameObject shown around ball when shield is active")]
     [SerializeField] private GameObject shieldVisual;
 
-    [Header("Multiplier Visual Effects")]
-    [Tooltip("Enable color change when multiplier increases")]
-    [SerializeField] private bool enableColorChange = true;
+    [Header("Multiplier Ball Sprites")]
+    [Tooltip("Default ball sprite (1x / no multiplier)")]
+    [SerializeField] private Sprite defaultSprite;
 
-    [Tooltip("Default ball color (no multiplier)")]
-    [SerializeField] private Color defaultColor = Color.white;
+    [Tooltip("Ball sprite at 2x multiplier")]
+    [SerializeField] private Sprite sprite2x;
 
-    [Tooltip("Color at 2x multiplier")]
-    [SerializeField] private Color color2x = Color.yellow;
-
-    [Tooltip("Color at 4x multiplier")]
-    [SerializeField] private Color color4x = new Color(1f, 0.5f, 0f); // Orange
-
-    [Tooltip("Color at 8x multiplier")]
-    [SerializeField] private Color color8x = Color.red;
-
-    [Tooltip("Color at 16x multiplier")]
-    [SerializeField] private Color color16x = new Color(0.8f, 0f, 1f); // Purple
-
-    [Tooltip("How fast to transition between colors")]
-    [SerializeField] private float colorTransitionSpeed = 5f;
+    [Tooltip("Ball sprite at 3x+ multiplier")]
+    [SerializeField] private Sprite sprite3xPlus;
 
     [Header("Fire/Trail Effect")]
     [Tooltip("Particle system for fire/trail effect when on a streak")]
@@ -116,14 +101,23 @@ public class BallController : MonoBehaviour
     // Death sequence tracking - UI shows after ball hits floor
     private bool hasHitFloorAfterDeath = false;
 
-    // Color change tracking
-    private Color targetColor;
-    private Color currentColor;
-
     // Fire effect tracking
     private ParticleSystem.EmissionModule fireEmission;
     private bool fireEffectActive = false;
     private int currentMultiplier = 1;
+
+    // Cached UIManager reference for shield indicator
+    private UIManager uiManager;
+
+    // Hoop edge contact tracking - disables X lock so ball can roll on rim
+    private int hoopEdgeContactCount = 0;
+
+    // Invincibility after shield breaks
+    private bool isInvincible = false;
+    private float invincibilityTimer = 0f;
+    private const float INVINCIBILITY_DURATION = 2f;
+    private const float FLASH_INTERVAL = 0.1f;
+    private float flashTimer = 0f;
 
     #endregion
 
@@ -148,6 +142,11 @@ public class BallController : MonoBehaviour
     /// Used by other systems to check if ball should respond to events.
     /// </summary>
     public bool IsDead => isDead;
+
+    /// <summary>
+    /// Whether the ball is in post-shield invincibility frames.
+    /// </summary>
+    public bool IsInvincible => isInvincible;
 
     #endregion
 
@@ -177,10 +176,6 @@ public class BallController : MonoBehaviour
         startPosition = transform.position;
         lockedXPosition = startPosition.x;
 
-        // Initialize colors
-        currentColor = defaultColor;
-        targetColor = defaultColor;
-
         // Setup fire effect if assigned
         if (fireEffect != null)
         {
@@ -204,7 +199,6 @@ public class BallController : MonoBehaviour
         // Ball should float in place until game starts
         rb.gravityScale = 0;
         rb.linearVelocity = Vector2.zero;
-        rb.freezeRotation = false;
 
         // Subscribe to game events
         if (GameManager.Instance != null)
@@ -217,10 +211,10 @@ public class BallController : MonoBehaviour
 
         UpdateShieldVisual();
 
-        // Apply initial color
-        if (spriteRenderer != null)
+        // Apply initial sprite
+        if (spriteRenderer != null && defaultSprite != null)
         {
-            spriteRenderer.color = currentColor;
+            spriteRenderer.sprite = defaultSprite;
         }
     }
 
@@ -260,18 +254,39 @@ public class BallController : MonoBehaviour
         }
 
         // Only update during gameplay (not dead)
+        // X lock is disabled when ball is touching a hoop rim so it can roll naturally
         if (GameManager.Instance != null && GameManager.Instance.IsPlaying && !isDead)
         {
-            LockHorizontalPosition();
-            UpdateTilt();
+            if (hoopEdgeContactCount <= 0)
+            {
+                LockHorizontalPosition();
+            }
         }
 
-        // Smooth color transition
-        if (enableColorChange && spriteRenderer != null)
+        // Invincibility countdown and sprite flash
+        if (isInvincible)
         {
-            currentColor = Color.Lerp(currentColor, targetColor, Time.deltaTime * colorTransitionSpeed);
-            spriteRenderer.color = currentColor;
+            invincibilityTimer -= Time.deltaTime;
+            if (invincibilityTimer <= 0f)
+            {
+                isInvincible = false;
+                // Ensure sprite is fully visible when invincibility ends
+                if (spriteRenderer != null)
+                    spriteRenderer.enabled = true;
+            }
+            else
+            {
+                // Flash the sprite on and off
+                flashTimer -= Time.deltaTime;
+                if (flashTimer <= 0f)
+                {
+                    flashTimer = FLASH_INTERVAL;
+                    if (spriteRenderer != null)
+                        spriteRenderer.enabled = !spriteRenderer.enabled;
+                }
+            }
         }
+
     }
 
     /// <summary>
@@ -414,39 +429,25 @@ public class BallController : MonoBehaviour
 
     /// <summary>
     /// Applies upward force for jump.
-    ///
-    /// DECISION: Completely replaces Y velocity instead of adding to it.
-    /// This ensures consistent jump height regardless of current velocity.
+    /// When on a hoop rim, also adds forward push and torque so the ball
+    /// rolls naturally along the rim instead of popping straight up.
     /// </summary>
     void Jump()
     {
-        rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
-        PlaySound(jumpSound);
-    }
-
-    /// <summary>
-    /// Tilts the ball based on Y velocity — up when rising, down when falling.
-    /// </summary>
-    void UpdateTilt()
-    {
-        // Map velocity to target angle: positive velocity = tilt up, negative = tilt down
-        float targetAngle;
-        if (rb.linearVelocity.y > 0)
+        if (hoopEdgeContactCount > 0)
         {
-            targetAngle = Mathf.Lerp(0f, maxUpAngle, rb.linearVelocity.y / jumpForce);
+            // On hoop rim: push up + forward, add rolling torque
+            rb.linearVelocity = new Vector2(rb.linearVelocity.x + rimPushForce, jumpForce);
+            rb.AddTorque(jumpTorque);
         }
         else
         {
-            targetAngle = Mathf.Lerp(0f, maxDownAngle, -rb.linearVelocity.y / (jumpForce * 2f));
+            // In air: normal upward jump with light spin
+            rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
+            rb.AddTorque(jumpTorque * 0.3f);
         }
 
-        targetAngle = Mathf.Clamp(targetAngle, maxDownAngle, maxUpAngle);
-
-        // Drive rotation via angular velocity so it works with physics
-        float currentAngle = rb.rotation;
-        if (currentAngle > 180f) currentAngle -= 360f;
-        float angleDiff = targetAngle - currentAngle;
-        rb.angularVelocity = angleDiff * tiltSpeed;
+        PlaySound(jumpSound);
     }
 
     /// <summary>
@@ -483,7 +484,10 @@ public class BallController : MonoBehaviour
         rb.gravityScale = 1;
         isDead = false;
         hasShield = false;
+        isInvincible = false;
         hasHitFloorAfterDeath = false;
+        if (spriteRenderer != null)
+            spriteRenderer.enabled = true;
         UpdateShieldVisual();
 
         // Reset position and rotation
@@ -491,15 +495,13 @@ public class BallController : MonoBehaviour
         transform.rotation = Quaternion.identity;
         rb.linearVelocity = Vector2.zero;
         rb.angularVelocity = 0f;
-        rb.freezeRotation = false;
+        hoopEdgeContactCount = 0;
 
-        // Reset color to default
-        targetColor = defaultColor;
-        currentColor = defaultColor;
+        // Reset sprite to default
         currentMultiplier = 1;
-        if (spriteRenderer != null)
+        if (spriteRenderer != null && defaultSprite != null)
         {
-            spriteRenderer.color = currentColor;
+            spriteRenderer.sprite = defaultSprite;
         }
 
         // Reset fire effect
@@ -532,12 +534,10 @@ public class BallController : MonoBehaviour
         isDead = true;
         hasHitFloorAfterDeath = false;
 
-        // IMPORTANT: Enable gravity so ball falls to ground
-        // Ball keeps its current velocity and continues its trajectory naturally
+        // Enable gravity so ball falls to ground
         rb.gravityScale = 1.5f; // Slightly higher for dramatic fall
 
-        // Unfreeze rotation for physics-driven tumble on death
-        rb.freezeRotation = false;
+        // Add random spin on death for tumble effect
         rb.angularVelocity = Random.Range(-180f, 180f);
 
         Debug.Log("BallController: Death sequence started - ball will fall to floor");
@@ -554,10 +554,14 @@ public class BallController : MonoBehaviour
     {
         currentMultiplier = multiplier;
 
-        // Set target color based on multiplier
-        if (enableColorChange)
+        // Swap ball sprite based on multiplier
+        if (spriteRenderer != null)
         {
-            targetColor = GetColorForMultiplier(multiplier);
+            Sprite newSprite = GetSpriteForMultiplier(multiplier);
+            if (newSprite != null)
+            {
+                spriteRenderer.sprite = newSprite;
+            }
         }
 
         // Update fire effect
@@ -596,9 +600,9 @@ public class BallController : MonoBehaviour
                 (multiplier - fireEffectThreshold) / 12f);
             fireEmission.rateOverTime = intensity;
 
-            // Update fire color to match ball color
+            // Update fire color based on multiplier
             var main = fireEffect.main;
-            main.startColor = GetColorForMultiplier(multiplier);
+            main.startColor = GetFireColorForMultiplier(multiplier);
         }
     }
 
@@ -613,19 +617,26 @@ public class BallController : MonoBehaviour
     }
 
     /// <summary>
-    /// Returns the appropriate color for a given multiplier value.
-    /// Colors progress through a rainbow as multiplier increases.
+    /// Returns the appropriate sprite for a given multiplier value.
     /// </summary>
-    Color GetColorForMultiplier(int multiplier)
+    Sprite GetSpriteForMultiplier(int multiplier)
     {
         switch (multiplier)
         {
-            case 1: return defaultColor;
-            case 2: return color2x;
-            case 4: return color4x;
-            case 8: return color8x;
-            default: return color16x; // 16x and above
+            case 1: return defaultSprite;
+            case 2: return sprite2x;
+            default: return sprite3xPlus; // 3x and above
         }
+    }
+
+    /// <summary>
+    /// Returns fire particle color based on multiplier.
+    /// </summary>
+    Color GetFireColorForMultiplier(int multiplier)
+    {
+        if (multiplier <= 4) return new Color(1f, 0.6f, 0f, 0.8f);      // Orange fire
+        if (multiplier <= 8) return new Color(1f, 0.3f, 0f, 0.9f);      // Red-orange fire
+        return new Color(1f, 0.1f, 0.5f, 1f);                           // Purple fire (9x+)
     }
 
     #endregion
@@ -641,17 +652,22 @@ public class BallController : MonoBehaviour
     /// </summary>
     void OnCollisionEnter2D(Collision2D collision)
     {
+        // Track hoop edge contacts for rim rolling physics
+        if (collision.gameObject.GetComponent<HoopEdgeCollider>() != null)
+        {
+            hoopEdgeContactCount++;
+        }
+
         // After death, detect floor hit to show game over UI
         if (isDead)
         {
             if (collision.gameObject.CompareTag("Boundary") && !hasHitFloorAfterDeath)
             {
                 hasHitFloorAfterDeath = true;
-                // Ball hit the floor after death - now show game over UI
                 GameManager.Instance?.ShowGameOverUI();
                 Debug.Log("BallController: Hit floor after death - showing game over UI");
             }
-            return; // Don't process other collisions when dead
+            return;
         }
 
         if (GameManager.Instance == null || !GameManager.Instance.IsPlaying) return;
@@ -662,9 +678,17 @@ public class BallController : MonoBehaviour
         }
     }
 
+    void OnCollisionExit2D(Collision2D collision)
+    {
+        // Track hoop edge contacts for rim rolling physics
+        if (collision.gameObject.GetComponent<HoopEdgeCollider>() != null)
+        {
+            hoopEdgeContactCount = Mathf.Max(0, hoopEdgeContactCount - 1);
+        }
+    }
+
     /// <summary>
     /// Catches the case where the ball is already on the floor when death occurs.
-    /// OnCollisionEnter2D won't re-fire for an ongoing collision, but Stay will.
     /// </summary>
     void OnCollisionStay2D(Collision2D collision)
     {
@@ -690,10 +714,18 @@ public class BallController : MonoBehaviour
             hasShield = false;
             UpdateShieldVisual();
             PlaySound(shieldBlockSound);
+            StartInvincibility();
 
             // Bounce away from boundary
             rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce * 0.5f);
             Debug.Log("BallController: Shield absorbed boundary hit");
+            return;
+        }
+
+        if (isInvincible)
+        {
+            // Still in invincibility frames - bounce but don't die
+            rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce * 0.5f);
             return;
         }
 
@@ -720,17 +752,28 @@ public class BallController : MonoBehaviour
     /// <summary>
     /// Attempts to use the shield.
     /// Returns true if shield was available and used.
+    /// Starts 2-second invincibility with sprite flashing.
     /// </summary>
     public bool UseShield()
     {
+        if (isInvincible) return true;
+
         if (hasShield)
         {
             hasShield = false;
             UpdateShieldVisual();
             PlaySound(shieldBlockSound);
+            StartInvincibility();
             return true;
         }
         return false;
+    }
+
+    void StartInvincibility()
+    {
+        isInvincible = true;
+        invincibilityTimer = INVINCIBILITY_DURATION;
+        flashTimer = FLASH_INTERVAL;
     }
 
     /// <summary>
@@ -739,10 +782,18 @@ public class BallController : MonoBehaviour
     /// </summary>
     void UpdateShieldVisual()
     {
-        if (shieldVisual != null)
+        // Only toggle shieldVisual if it's a scene object (not a prefab asset).
+        // Calling SetActive on a prefab asset modifies the asset itself, breaking future spawns.
+        if (shieldVisual != null && shieldVisual.scene.IsValid())
         {
             shieldVisual.SetActive(hasShield);
         }
+
+        // Update the UI shield indicator
+        if (uiManager == null)
+            uiManager = Object.FindFirstObjectByType<UIManager>();
+        if (uiManager != null)
+            uiManager.SetShieldIndicator(hasShield);
     }
 
     #endregion
@@ -779,16 +830,17 @@ public class BallController : MonoBehaviour
         rb.freezeRotation = false;
         isDead = false;
         hasShield = false;
+        isInvincible = false;
         hasHitFloorAfterDeath = false;
+        if (spriteRenderer != null)
+            spriteRenderer.enabled = true;
         UpdateShieldVisual();
 
-        // Reset colors
-        targetColor = defaultColor;
-        currentColor = defaultColor;
+        // Reset sprite to default
         currentMultiplier = 1;
-        if (spriteRenderer != null)
+        if (spriteRenderer != null && defaultSprite != null)
         {
-            spriteRenderer.color = currentColor;
+            spriteRenderer.sprite = defaultSprite;
         }
 
         // Reset fire effect

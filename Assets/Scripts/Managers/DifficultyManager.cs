@@ -55,12 +55,19 @@ public class DifficultyManager : MonoBehaviour
             difficultySlider.minValue = 0;
             difficultySlider.maxValue = 2;
             difficultySlider.wholeNumbers = true;
-            difficultySlider.value = currentDifficulty;
+            // Register listener BEFORE setting value so the callback fires
             difficultySlider.onValueChanged.AddListener(OnDifficultyChanged);
+            difficultySlider.SetValueWithoutNotify(currentDifficulty);
         }
 
         UpdateDifficultyDisplay();
         ApplyDifficulty();
+    }
+
+    void OnDestroy()
+    {
+        if (difficultySlider != null)
+            difficultySlider.onValueChanged.RemoveListener(OnDifficultyChanged);
     }
 
     void OnDifficultyChanged(float value)

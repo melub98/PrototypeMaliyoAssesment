@@ -20,6 +20,7 @@ public class UIManager : MonoBehaviour
     [Header("Buttons")]
     [SerializeField] private Button playButton;
     [SerializeField] private Button restartButton;
+    [SerializeField] private Button exitButton;
 
     [Header("Score Display")]
     [Tooltip("Current score during gameplay")]
@@ -27,6 +28,9 @@ public class UIManager : MonoBehaviour
 
     [Tooltip("Final score on game over screen")]
     [SerializeField] private TextMeshProUGUI finalScoreText;
+
+    [Tooltip("All-time best score on game over screen")]
+    [SerializeField] private TextMeshProUGUI allTimeBestText;
 
     [Header("Shield Indicator")]
     [Tooltip("Shown when player has a shield")]
@@ -75,6 +79,7 @@ public class UIManager : MonoBehaviour
         if (playButton != null) playButton.onClick.RemoveListener(OnPlayButton);
         if (restartButton != null) restartButton.onClick.RemoveListener(OnRestartButton);
         if (achievementsButton != null) achievementsButton.onClick.RemoveListener(OnAchievementsButton);
+        if (exitButton != null) exitButton.onClick.RemoveListener(OnExitButton);
 
         if (GameManager.Instance != null)
         {
@@ -107,6 +112,12 @@ public class UIManager : MonoBehaviour
         {
             achievementsButton.onClick.RemoveAllListeners();
             achievementsButton.onClick.AddListener(OnAchievementsButton);
+        }
+
+        if (exitButton != null)
+        {
+            exitButton.onClick.RemoveAllListeners();
+            exitButton.onClick.AddListener(OnExitButton);
         }
     }
 
@@ -196,9 +207,17 @@ public class UIManager : MonoBehaviour
     {
         if (gameOverPanel != null) gameOverPanel.SetActive(true);
 
-        if (finalScoreText != null && GameManager.Instance != null)
+        int currentScore = GameManager.Instance != null ? GameManager.Instance.GetScore() : 0;
+
+        if (finalScoreText != null)
         {
-            finalScoreText.text = "Score: " + GameManager.Instance.GetScore().ToString();
+            finalScoreText.text = "Score: " + currentScore;
+        }
+
+        if (allTimeBestText != null && LeaderboardManager.Instance != null)
+        {
+            int allTimeBest = LeaderboardManager.Instance.GetAllTimeBest();
+            allTimeBestText.text = "Best: " + allTimeBest;
         }
     }
 
@@ -222,6 +241,22 @@ public class UIManager : MonoBehaviour
     {
         if (achievementShowcase != null)
             achievementShowcase.ShowPanel();
+    }
+
+    public void OnExitButton()
+    {
+        Debug.Log("Exit button clicked");
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+        // In WebGL, close the browser tab
+        Application.ExternalEval("window.close();");
+#else
+        Application.Quit();
+#endif
+
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+#endif
     }
 
     #endregion

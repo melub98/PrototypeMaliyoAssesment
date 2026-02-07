@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 
 /// <summary>
 /// Main controller for a basketball hoop obstacle.
@@ -8,12 +9,6 @@ using UnityEngine;
 /// - Child components (ScoringZone, EdgeCollider, MissDetector) report to this controller
 /// - Tracks player's pass state: entered zone, touched edges, cleared hoop
 /// - Determines whether pass was "clean" (no edge contact) for multiplier bonus
-///
-/// MULTIPLIER COLOR SYSTEM:
-/// - Hoops spawn with color matching current multiplier (shows player's streak)
-/// - Colors: white (1x) -> yellow (2x) -> orange (4x) -> red (8x) -> purple (16x)
-/// - Fire effect activates at 4x multiplier and above for visual impact
-/// - This gives players immediate feedback about their current streak
 ///
 /// FIRE EFFECT:
 /// - Particle system child object that shows flames around the hoop
@@ -73,29 +68,7 @@ public class HoopController : MonoBehaviour
 
     #endregion
 
-    #region Multiplier Visual Effects
-
-    [Header("Multiplier Color Effect")]
-    [Tooltip("Enable color change based on multiplier")]
-    [SerializeField] private bool enableColorEffect = true;
-
-    [Tooltip("Default hoop color (1x multiplier)")]
-    [SerializeField] private Color color1x = Color.white;
-
-    [Tooltip("Color at 2x multiplier")]
-    [SerializeField] private Color color2x = Color.yellow;
-
-    [Tooltip("Color at 4x multiplier")]
-    [SerializeField] private Color color4x = new Color(1f, 0.5f, 0f); // Orange
-
-    [Tooltip("Color at 8x multiplier")]
-    [SerializeField] private Color color8x = Color.red;
-
-    [Tooltip("Color at 16x multiplier")]
-    [SerializeField] private Color color16x = new Color(0.8f, 0f, 1f); // Purple
-
-    [Tooltip("How fast colors transition")]
-    [SerializeField] private float colorTransitionSpeed = 8f;
+    #region Fire Effect
 
     [Header("Fire Effect")]
     [Tooltip("Particle system for fire effect (child object)")]
@@ -125,9 +98,6 @@ public class HoopController : MonoBehaviour
     private float startY;
     private float moveTime;
 
-    // Color tracking
-    private Color targetColor;
-    private Color currentColor;
     private int currentMultiplier = 1;
 
     // Fire effect tracking
@@ -151,16 +121,12 @@ public class HoopController : MonoBehaviour
             audioSource.playOnAwake = false;
         }
 
-        // Cache sprite renderers for color change
+        // Cache sprite renderers for fade-out
         spriteRenderers = GetComponentsInChildren<SpriteRenderer>();
 
         // Store initial Y position for oscillation
         startY = transform.position.y;
         moveTime = Random.Range(0f, Mathf.PI * 2f);
-
-        // Initialize colors
-        currentColor = color1x;
-        targetColor = color1x;
 
         // Setup fire effect if assigned
         if (fireEffect != null)
@@ -171,14 +137,8 @@ public class HoopController : MonoBehaviour
         }
     }
 
-    void Start()
-    {
-        // Apply initial color immediately
-        ApplyColorToRenderers(currentColor);
-    }
-
     /// <summary>
-    /// Unity Update - Handle movement and visual effects.
+    /// Unity Update - Handle movement.
     /// </summary>
     void Update()
     {
@@ -188,13 +148,6 @@ public class HoopController : MonoBehaviour
             moveTime += Time.deltaTime * moveSpeed;
             float newY = startY + Mathf.Sin(moveTime) * moveRange;
             transform.position = new Vector3(transform.position.x, newY, transform.position.z);
-        }
-
-        // Smooth color transition
-        if (enableColorEffect && spriteRenderers != null && spriteRenderers.Length > 0)
-        {
-            currentColor = Color.Lerp(currentColor, targetColor, Time.deltaTime * colorTransitionSpeed);
-            ApplyColorToRenderers(currentColor);
         }
     }
 
@@ -258,7 +211,47 @@ public class HoopController : MonoBehaviour
             }
 
             Debug.Log($"HoopController: Hoop cleared! Clean pass: {wasCleanPass}");
+
+            // Fade out and destroy hoop after player clears it
+            StartCoroutine(FadeOutAndDestroy());
         }
+    }
+
+    IEnumerator FadeOutAndDestroy()
+    {
+        // Disable colliders so the fading hoop doesn't interact with anything
+        foreach (var col in GetComponentsInChildren<Collider2D>())
+            col.enabled = false;
+
+        float fadeDuration = 0.3f;
+        float elapsed = 0f;
+
+        // Capture starting alpha for each renderer
+        float[] startAlphas = new float[spriteRenderers.Length];
+        for (int i = 0; i < spriteRenderers.Length; i++)
+        {
+            startAlphas[i] = spriteRenderers[i] != null ? spriteRenderers[i].color.a : 1f;
+        }
+
+        while (elapsed < fadeDuration)
+        {
+            elapsed += Time.deltaTime;
+            float t = elapsed / fadeDuration;
+
+            for (int i = 0; i < spriteRenderers.Length; i++)
+            {
+                if (spriteRenderers[i] != null)
+                {
+                    Color c = spriteRenderers[i].color;
+                    c.a = Mathf.Lerp(startAlphas[i], 0f, t);
+                    spriteRenderers[i].color = c;
+                }
+            }
+
+            yield return null;
+        }
+
+        Destroy(gameObject);
     }
 
     /// <summary>
@@ -277,30 +270,17 @@ public class HoopController : MonoBehaviour
 
     #endregion
 
-    #region Multiplier Visual Methods
+    #region Fire Effect Methods
 
     /// <summary>
-    /// Sets the multiplier level for this hoop's visual effects.
+    /// Sets the multiplier level for this hoop's fire effect.
     /// Called by HoopSpawner when creating the hoop.
-    ///
-    /// VISUAL FEEDBACK:
-    /// - Changes hoop color based on multiplier
-    /// - Activates fire effect at threshold (4x+)
-    /// - Fire intensity scales with multiplier
+    /// Fire activates at threshold and intensity scales with multiplier.
     /// </summary>
     public void SetMultiplierVisuals(int multiplier)
     {
         currentMultiplier = multiplier;
-
-        // Set color based on multiplier
-        targetColor = GetColorForMultiplier(multiplier);
-        currentColor = targetColor; // Instant color on spawn
-        ApplyColorToRenderers(currentColor);
-
-        // Handle fire effect
         UpdateFireEffect(multiplier);
-
-        Debug.Log($"HoopController: Set multiplier visuals to {multiplier}x");
     }
 
     /// <summary>
@@ -314,14 +294,12 @@ public class HoopController : MonoBehaviour
 
         if (shouldShowFire && !fireEffectActive)
         {
-            // Activate fire effect
             fireEffect.gameObject.SetActive(true);
             fireEffect.Play();
             fireEffectActive = true;
         }
         else if (!shouldShowFire && fireEffectActive)
         {
-            // Deactivate fire effect
             fireEffect.Stop();
             fireEffect.gameObject.SetActive(false);
             fireEffectActive = false;
@@ -331,59 +309,22 @@ public class HoopController : MonoBehaviour
         if (shouldShowFire && scaleFireWithMultiplier)
         {
             float intensity = Mathf.Lerp(baseFireEmission, maxFireEmission,
-                (multiplier - fireEffectThreshold) / 12f); // 4 to 16 range
+                (multiplier - fireEffectThreshold) / 12f);
             fireEmission.rateOverTime = intensity;
 
-            // Also scale particle start color intensity
             var main = fireEffect.main;
-            Color fireColor = GetFireColorForMultiplier(multiplier);
-            main.startColor = fireColor;
-        }
-    }
-
-    /// <summary>
-    /// Returns the appropriate color for a given multiplier.
-    /// </summary>
-    Color GetColorForMultiplier(int multiplier)
-    {
-        switch (multiplier)
-        {
-            case 1: return color1x;
-            case 2: return color2x;
-            case 4: return color4x;
-            case 8: return color8x;
-            default: return color16x;
+            main.startColor = GetFireColorForMultiplier(multiplier);
         }
     }
 
     /// <summary>
     /// Returns fire particle color based on multiplier.
-    /// Higher multipliers = more intense fire colors.
     /// </summary>
     Color GetFireColorForMultiplier(int multiplier)
     {
-        switch (multiplier)
-        {
-            case 4: return new Color(1f, 0.6f, 0f, 0.8f);      // Orange fire
-            case 8: return new Color(1f, 0.3f, 0f, 0.9f);      // Red-orange fire
-            default: return new Color(1f, 0.1f, 0.5f, 1f);     // Purple fire (16x+)
-        }
-    }
-
-    /// <summary>
-    /// Applies color to all sprite renderers.
-    /// </summary>
-    void ApplyColorToRenderers(Color color)
-    {
-        if (spriteRenderers == null) return;
-
-        foreach (var renderer in spriteRenderers)
-        {
-            if (renderer != null)
-            {
-                renderer.color = color;
-            }
-        }
+        if (multiplier <= 4) return new Color(1f, 0.6f, 0f, 0.8f);      // Orange fire
+        if (multiplier <= 8) return new Color(1f, 0.3f, 0f, 0.9f);      // Red-orange fire
+        return new Color(1f, 0.1f, 0.5f, 1f);                           // Purple fire (9x+)
     }
 
     #endregion
@@ -415,10 +356,6 @@ public class HoopController : MonoBehaviour
         playerEnteredZone = false;
         playerTouchedEdges = false;
         hoopCleared = false;
-
-        targetColor = color1x;
-        currentColor = color1x;
-        ApplyColorToRenderers(currentColor);
 
         if (fireEffect != null)
         {

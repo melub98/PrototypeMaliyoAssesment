@@ -44,15 +44,19 @@ public class AchievementNotification : MonoBehaviour
             {
                 canvasGroup = notificationPanel.AddComponent<CanvasGroup>();
             }
-            notificationPanel.SetActive(false);
         }
-    }
 
-    void Start()
-    {
+        // Register listener BEFORE deactivating the panel, since notificationPanel
+        // may reference this same GameObject. Deactivating in Awake prevents Start()
+        // from ever running, which would leave the listener unregistered.
         if (AchievementManager.Instance != null)
         {
             AchievementManager.Instance.OnAchievementUnlocked.AddListener(OnAchievementUnlocked);
+        }
+
+        if (notificationPanel != null)
+        {
+            notificationPanel.SetActive(false);
         }
     }
 
