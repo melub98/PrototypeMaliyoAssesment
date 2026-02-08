@@ -4,6 +4,8 @@ using UnityEngine;
 /// Moves the hoop horizontally to the left.
 /// Destroys the hoop when it goes off-screen.
 /// Attach to the parent hoop GameObject.
+/// Movement is controlled by GameManager.IsPlaying - stops on game over,
+/// resumes on revive automatically.
 /// </summary>
 public class HoopMover : MonoBehaviour
 {
@@ -15,7 +17,7 @@ public class HoopMover : MonoBehaviour
     [SerializeField] private float destroyXPosition = -12f;
 
     private float moveSpeed;
-    private bool isMoving = true;
+    private BallController playerBall;
 
     void Start()
     {
@@ -32,20 +34,17 @@ public class HoopMover : MonoBehaviour
         {
             moveSpeed = 3f;
         }
-
-        // Subscribe to game over
-        if (GameManager.Instance != null)
-        {
-            GameManager.Instance.OnGameOver.AddListener(OnGameOver);
-        }
     }
 
     void Update()
     {
-        if (!isMoving) return;
-
-        // Check if game is playing
+        // Only move when game is playing (auto-pauses on game over, auto-resumes on revive)
         if (GameManager.Instance == null || !GameManager.Instance.IsPlaying) return;
+
+        // Pause scrolling when ball is on a hoop rim
+        if (playerBall == null)
+            playerBall = Object.FindFirstObjectByType<BallController>();
+        if (playerBall != null && playerBall.IsOnRim) return;
 
         // Move left
         transform.Translate(Vector3.left * moveSpeed * Time.deltaTime, Space.World);
@@ -55,19 +54,6 @@ public class HoopMover : MonoBehaviour
         {
             Destroy(gameObject);
         }
-    }
-
-    void OnDestroy()
-    {
-        if (GameManager.Instance != null)
-        {
-            GameManager.Instance.OnGameOver.RemoveListener(OnGameOver);
-        }
-    }
-
-    void OnGameOver()
-    {
-        isMoving = false;
     }
 
     /// <summary>

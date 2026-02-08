@@ -96,6 +96,9 @@ public class HoopSpawner : MonoBehaviour
     [Range(0f, 100f)]
     [SerializeField] private float reverseHoopChance = 25f;
 
+    [Tooltip("Rotation offset applied to reverse hoops (added to random rotation)")]
+    [SerializeField] private float reverseHoopRotationOffset = 0f;
+
     [Header("Ghost Hoop")]
     [Tooltip("Ghost hoop prefab (grey, appears/disappears). Must have HoopController, HoopMover, and GhostHoopEffect")]
     [SerializeField] private GameObject ghostHoopPrefab;
@@ -138,6 +141,7 @@ public class HoopSpawner : MonoBehaviour
     private bool isSpawning = false;
     private int currentDifficulty = 1; // 0=Easy, 1=Medium, 2=Hard
     private int hoopsSpawned = 0;
+    private BallController playerBall;
 
     // Base values for reset
     private float baseSpawnInterval;
@@ -183,6 +187,7 @@ public class HoopSpawner : MonoBehaviour
         {
             GameManager.Instance.OnGameStart.AddListener(OnGameStart);
             GameManager.Instance.OnGameOver.AddListener(OnGameOver);
+            GameManager.Instance.OnRevive.AddListener(OnRevive);
         }
 
         // Validate required prefabs
@@ -215,6 +220,11 @@ public class HoopSpawner : MonoBehaviour
         // Only spawn during active gameplay
         if (!isSpawning) return;
 
+        // Pause spawn timer when ball is on rim (world is frozen)
+        if (playerBall == null)
+            playerBall = Object.FindFirstObjectByType<BallController>();
+        if (playerBall != null && playerBall.IsOnRim) return;
+
         // Accumulate time
         spawnTimer += Time.deltaTime;
 
@@ -238,6 +248,7 @@ public class HoopSpawner : MonoBehaviour
         {
             GameManager.Instance.OnGameStart.RemoveListener(OnGameStart);
             GameManager.Instance.OnGameOver.RemoveListener(OnGameOver);
+            GameManager.Instance.OnRevive.RemoveListener(OnRevive);
         }
     }
 
@@ -283,6 +294,14 @@ public class HoopSpawner : MonoBehaviour
     void OnGameOver()
     {
         isSpawning = false;
+    }
+
+    /// <summary>
+    /// Called when player revives. Resume spawning.
+    /// </summary>
+    void OnRevive()
+    {
+        isSpawning = true;
     }
 
     #endregion
@@ -332,8 +351,16 @@ public class HoopSpawner : MonoBehaviour
         // Random Y position within bounds
         float yPos = Random.Range(minY, maxY);
 
-        // Get rotation from difficulty-appropriate array, plus base offset
-        float angle = GetRandomRotation() + baseRotationOffset;
+        // Reverse hoops use only their own rotation, normal hoops use random + base offset
+        float angle;
+        if (isReverse)
+        {
+            angle = reverseHoopRotationOffset;
+        }
+        else
+        {
+            angle = GetRandomRotation() + baseRotationOffset;
+        }
 
         // Calculate spawn position and rotation
         Vector3 spawnPos = new Vector3(spawnXPosition, yPos, 0f);
@@ -375,7 +402,7 @@ public class HoopSpawner : MonoBehaviour
         // Try to spawn shield power-up WITHIN this hoop (not for ghost hoops)
         if (!isGhost)
         {
-            TrySpawnShield(spawnPos, rotation);
+            TrySpawnShield(hoop);
         }
 
         Debug.Log($"HoopSpawner: Spawned {hoopName} #{hoopsSpawned} at Y={yPos:F1}, angle={angle}°, scale={currentHoopScale}");
@@ -492,30 +519,22 @@ public class HoopSpawner : MonoBehaviour
     /// </summary>
     /// <param name="hoopPos">Position of the hoop</param>
     /// <param name="hoopRotation">Rotation of the hoop</param>
-    void TrySpawnShield(Vector3 hoopPos, Quaternion hoopRotation)
+    void TrySpawnShield(GameObject hoop)
     {
-        // Validate prefab
         if (shieldPrefab == null) return;
-
-        // Check minimum interval between shields
         if (Time.time - lastShieldSpawnTime < minShieldInterval) return;
-
-        // Random chance check
         if (Random.Range(0f, 100f) > shieldSpawnChance) return;
 
-        // SPAWN WITHIN HOOP: Position shield at hoop center
-        // Small random offset keeps it interesting but still inside hoop
-        float offsetY = Random.Range(-0.3f, 0.3f);
-        float offsetX = Random.Range(-0.2f, 0.2f);
+        // Spawn shield as a child of the hoop so it moves with it
+        GameObject shield = Instantiate(shieldPrefab, hoop.transform);
 
-        // Apply offset relative to hoop rotation
-        Vector3 offset = hoopRotation * new Vector3(offsetX, offsetY, 0f);
-        Vector3 shieldPos = hoopPos + offset;
+        // Small random offset within the hoop opening, scaled by hoop size
+        float offsetY = Random.Range(-0.2f, 0.2f) * currentHoopScale;
+        float offsetX = Random.Range(-0.1f, 0.1f) * currentHoopScale;
+        shield.transform.localPosition = new Vector3(offsetX, offsetY, 0f);
+        shield.transform.localRotation = Quaternion.identity;
 
-        // Instantiate shield at calculated position
-        Instantiate(shieldPrefab, shieldPos, Quaternion.identity);
         lastShieldSpawnTime = Time.time;
-
         Debug.Log("HoopSpawner: Spawned shield power-up within hoop");
     }
 

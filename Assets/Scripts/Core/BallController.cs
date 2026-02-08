@@ -47,13 +47,6 @@ public class BallController : MonoBehaviour
     [Tooltip("Maximum angular velocity in degrees/sec. Caps spin so collisions can override it")]
     [SerializeField] private float maxAngularVelocity = 360f;
 
-    [Header("Rim Push")]
-    [Tooltip("Horizontal push force when jumping while touching hoop rim")]
-    [SerializeField] private float rimPushForce = 1.5f;
-
-    [Tooltip("Max horizontal drift allowed when on hoop rim before snapping back")]
-    [SerializeField] private float maxRimDrift = 0.5f;
-
     [Header("Audio")]
     [SerializeField] private AudioClip jumpSound;
     [SerializeField] private AudioClip deathSound;
@@ -113,11 +106,18 @@ public class BallController : MonoBehaviour
     private bool fireEffectActive = false;
     private int currentMultiplier = 1;
 
+    // Wing flap reference
+    private WingFlap wingFlap;
+
     // Cached UIManager reference for shield indicator
     private UIManager uiManager;
 
-    // Hoop edge contact tracking - allows rim push when jumping on rim
+    // Hoop edge contact tracking
     private int hoopEdgeContactCount = 0;
+
+    // Grace period so IsOnRim doesn't flicker when ball briefly loses contact
+    private float rimGraceTimer = 0f;
+    private const float RIM_GRACE_DURATION = 0.15f;
 
     // Invincibility after shield breaks
     private bool isInvincible = false;
@@ -154,6 +154,13 @@ public class BallController : MonoBehaviour
     /// Whether the ball is in post-shield invincibility frames.
     /// </summary>
     public bool IsInvincible => isInvincible;
+
+    /// <summary>
+    /// Whether the ball is currently touching a hoop rim.
+    /// Uses a short grace period to prevent flickering when contact briefly drops.
+    /// Used by HoopMover and BackgroundScroller to pause scrolling.
+    /// </summary>
+    public bool IsOnRim => hoopEdgeContactCount > 0 || rimGraceTimer > 0f;
 
     #endregion
 
@@ -193,6 +200,9 @@ public class BallController : MonoBehaviour
             fireEffect.Stop();
             fireEffect.gameObject.SetActive(false);
         }
+
+        // Cache wing flap component
+        wingFlap = GetComponent<WingFlap>();
 
         SetupInputActions();
     }
@@ -256,6 +266,12 @@ public class BallController : MonoBehaviour
     /// </summary>
     void Update()
     {
+        // Count down rim grace timer
+        if (rimGraceTimer > 0f)
+        {
+            rimGraceTimer -= Time.deltaTime;
+        }
+
         // Process buffered input
         if (jumpPressed)
         {
@@ -266,15 +282,11 @@ public class BallController : MonoBehaviour
         // Only update during gameplay (not dead)
         if (GameManager.Instance != null && GameManager.Instance.IsPlaying && !isDead)
         {
-            if (hoopEdgeContactCount <= 0)
+            // X lock disabled on rim (uses IsOnRim which includes grace timer,
+            // preventing the lock from flickering on during brief contact drops)
+            if (!IsOnRim)
             {
-                // Normal: hard lock to X position
                 LockHorizontalPosition();
-            }
-            else
-            {
-                // On rim: soft leash - allow small drift but don't get left behind
-                SoftLockHorizontalPosition();
             }
         }
 
@@ -453,19 +465,14 @@ public class BallController : MonoBehaviour
     /// </summary>
     void Jump()
     {
-        if (hoopEdgeContactCount > 0)
-        {
-            // On hoop rim: jump + push toward rim
-            rb.linearVelocity = new Vector2(rb.linearVelocity.x + rimPushForce, jumpForce);
-        }
-        else
-        {
-            // In air: normal jump
-            rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
-        }
+        rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
 
         // Add spin on jump - clamped in FixedUpdate so it can't overpower collision physics
         rb.AddTorque(jumpTorque);
+
+        // Trigger wing flap animation
+        if (wingFlap != null) wingFlap.Flap();
+
         PlaySound(jumpSound);
     }
 
@@ -484,24 +491,6 @@ public class BallController : MonoBehaviour
         if (Mathf.Abs(pos.x - lockedXPosition) > 0.01f)
         {
             pos.x = lockedXPosition;
-            transform.position = pos;
-            rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
-        }
-    }
-
-    /// <summary>
-    /// Soft leash when on hoop rim - allows small horizontal drift
-    /// so the ball can push against the edge, but clamps it so
-    /// the ball doesn't get left behind by the scrolling screen.
-    /// </summary>
-    void SoftLockHorizontalPosition()
-    {
-        Vector3 pos = transform.position;
-        float drift = pos.x - lockedXPosition;
-
-        if (Mathf.Abs(drift) > maxRimDrift)
-        {
-            pos.x = lockedXPosition + Mathf.Sign(drift) * maxRimDrift;
             transform.position = pos;
             rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
         }
@@ -570,6 +559,9 @@ public class BallController : MonoBehaviour
     {
         isDead = true;
         hasHitFloorAfterDeath = false;
+
+        // Play death sound immediately (when X icon appears)
+        PlaySound(deathSound);
 
         // Enable gravity so ball falls to ground
         rb.gravityScale = 1.5f; // Slightly higher for dramatic fall
@@ -689,10 +681,11 @@ public class BallController : MonoBehaviour
     /// </summary>
     void OnCollisionEnter2D(Collision2D collision)
     {
-        // Track hoop edge contacts for rim push physics
-        if (collision.gameObject.GetComponent<HoopEdgeCollider>() != null)
+        // Track hoop edge contacts - tag check is much faster than GetComponent
+        if (collision.gameObject.CompareTag("HoopEdge"))
         {
             hoopEdgeContactCount++;
+            rimGraceTimer = 0f; // Cancel grace timer since we're back in contact
         }
 
         // After death, detect floor hit to show game over UI
@@ -718,9 +711,15 @@ public class BallController : MonoBehaviour
     void OnCollisionExit2D(Collision2D collision)
     {
         // Track leaving hoop edge
-        if (collision.gameObject.GetComponent<HoopEdgeCollider>() != null)
+        if (collision.gameObject.CompareTag("HoopEdge"))
         {
             hoopEdgeContactCount = Mathf.Max(0, hoopEdgeContactCount - 1);
+
+            // Start grace timer when all edge contacts end to prevent scroll flicker
+            if (hoopEdgeContactCount == 0)
+            {
+                rimGraceTimer = RIM_GRACE_DURATION;
+            }
         }
     }
 
@@ -766,8 +765,7 @@ public class BallController : MonoBehaviour
             return;
         }
 
-        // No shield - game over
-        PlaySound(deathSound);
+        // No shield - game over (death sound plays in OnGameOver)
         GameManager.Instance?.GameOver();
     }
 
@@ -887,6 +885,55 @@ public class BallController : MonoBehaviour
             fireEffect.gameObject.SetActive(false);
             fireEffectActive = false;
         }
+    }
+
+    /// <summary>
+    /// Revives the ball at its current position with a shield.
+    /// Called by GameManager when player accepts revive.
+    /// </summary>
+    public void Revive()
+    {
+        isDead = false;
+        hasHitFloorAfterDeath = false;
+        hoopEdgeContactCount = 0;
+
+        // Reset physics
+        rb.gravityScale = 1;
+        rb.linearVelocity = Vector2.zero;
+        rb.angularVelocity = 0f;
+
+        // Snap back to locked X, clamp Y to visible area
+        Vector3 pos = transform.position;
+        pos.x = lockedXPosition;
+
+        // Clamp Y to camera bounds so ball is always visible on revive
+        if (Camera.main != null)
+        {
+            float camHalfHeight = Camera.main.orthographicSize;
+            float camY = Camera.main.transform.position.y;
+            float margin = 1f; // Stay away from edges
+            pos.y = Mathf.Clamp(pos.y, camY - camHalfHeight + margin, camY + camHalfHeight - margin);
+        }
+        else
+        {
+            // Fallback: use start position Y
+            pos.y = startPosition.y;
+        }
+
+        transform.position = pos;
+
+        // Grant shield and invincibility
+        hasShield = true;
+        UpdateShieldVisual();
+        StartInvincibility();
+
+        if (spriteRenderer != null)
+            spriteRenderer.enabled = true;
+
+        // Give an initial jump to get back in the air
+        Jump();
+
+        Debug.Log("BallController: Revived with shield!");
     }
 
     /// <summary>

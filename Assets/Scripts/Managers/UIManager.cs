@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using System.Runtime.InteropServices;
 
 /// <summary>
 /// Manages all UI elements for Flappy Jump including score display,
@@ -8,6 +9,11 @@ using TMPro;
 /// </summary>
 public class UIManager : MonoBehaviour
 {
+#if UNITY_WEBGL && !UNITY_EDITOR
+    [DllImport("__Internal")]
+    private static extern void CloseWebGLWindow();
+#endif
+
     #region Serialized Fields
 
     [Header("UI Panels")]
@@ -56,6 +62,13 @@ public class UIManager : MonoBehaviour
     [SerializeField] private Button achievementsButton;
     [SerializeField] private AchievementShowcaseUI achievementShowcase;
 
+    [Header("Revive")]
+    [Tooltip("Panel shown after death offering player a revive")]
+    [SerializeField] private GameObject revivePanel;
+
+    [SerializeField] private Button reviveButton;
+    [SerializeField] private Button declineReviveButton;
+
     [Header("Fail Indicator")]
     [Tooltip("X icon shown on screen when player dies or misses a hoop")]
     [SerializeField] private GameObject failIcon;
@@ -67,6 +80,7 @@ public class UIManager : MonoBehaviour
 
     private float failIconTimer = 0f;
     private bool gameOverPending = false;
+    private bool revivePending = false;
 
     #region Unity Lifecycle
 
@@ -79,9 +93,9 @@ public class UIManager : MonoBehaviour
             GameManager.Instance.OnScoreChanged.AddListener(UpdateScore);
             GameManager.Instance.OnGameStart.AddListener(OnGameStart);
             GameManager.Instance.OnGameOver.AddListener(OnDeath);
-            // Listen to OnShowGameOverUI instead of OnGameOver
-            // This delays the UI until ball hits the floor after death
             GameManager.Instance.OnShowGameOverUI.AddListener(OnGameOver);
+            GameManager.Instance.OnRevivePrompt.AddListener(OnRevivePrompt);
+            GameManager.Instance.OnRevive.AddListener(OnReviveAccepted);
         }
 
         InitializeUI();
@@ -93,6 +107,8 @@ public class UIManager : MonoBehaviour
         if (restartButton != null) restartButton.onClick.RemoveListener(OnRestartButton);
         if (achievementsButton != null) achievementsButton.onClick.RemoveListener(OnAchievementsButton);
         if (exitButton != null) exitButton.onClick.RemoveListener(OnExitButton);
+        if (reviveButton != null) reviveButton.onClick.RemoveListener(OnReviveButton);
+        if (declineReviveButton != null) declineReviveButton.onClick.RemoveListener(OnDeclineReviveButton);
 
         if (GameManager.Instance != null)
         {
@@ -100,6 +116,8 @@ public class UIManager : MonoBehaviour
             GameManager.Instance.OnGameStart.RemoveListener(OnGameStart);
             GameManager.Instance.OnGameOver.RemoveListener(OnDeath);
             GameManager.Instance.OnShowGameOverUI.RemoveListener(OnGameOver);
+            GameManager.Instance.OnRevivePrompt.RemoveListener(OnRevivePrompt);
+            GameManager.Instance.OnRevive.RemoveListener(OnReviveAccepted);
         }
     }
 
@@ -132,12 +150,25 @@ public class UIManager : MonoBehaviour
             exitButton.onClick.RemoveAllListeners();
             exitButton.onClick.AddListener(OnExitButton);
         }
+
+        if (reviveButton != null)
+        {
+            reviveButton.onClick.RemoveAllListeners();
+            reviveButton.onClick.AddListener(OnReviveButton);
+        }
+
+        if (declineReviveButton != null)
+        {
+            declineReviveButton.onClick.RemoveAllListeners();
+            declineReviveButton.onClick.AddListener(OnDeclineReviveButton);
+        }
     }
 
     void InitializeUI()
     {
         if (startPanel != null) startPanel.SetActive(true);
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
+        if (revivePanel != null) revivePanel.SetActive(false);
         if (inGameScorePanel != null) inGameScorePanel.SetActive(false);
         if (shieldIndicator != null) shieldIndicator.SetActive(false);
         if (failIcon != null) failIcon.SetActive(false);
@@ -155,8 +186,13 @@ public class UIManager : MonoBehaviour
             {
                 if (failIcon != null) failIcon.SetActive(false);
 
-                // Show game over panel now that X has disappeared
-                if (gameOverPending)
+                // Show revive panel or game over panel now that X has disappeared
+                if (revivePending)
+                {
+                    revivePending = false;
+                    ShowRevivePanel();
+                }
+                else if (gameOverPending)
                 {
                     gameOverPending = false;
                     ShowGameOverPanel();
@@ -193,11 +229,13 @@ public class UIManager : MonoBehaviour
     {
         if (startPanel != null) startPanel.SetActive(false);
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
+        if (revivePanel != null) revivePanel.SetActive(false);
         if (instructionText != null) instructionText.gameObject.SetActive(false);
         if (shieldIndicator != null) shieldIndicator.SetActive(false);
         if (failIcon != null) failIcon.SetActive(false);
         failIconTimer = 0f;
         gameOverPending = false;
+        revivePending = false;
 
         // Show in-game score panel with best score
         if (inGameScorePanel != null) inGameScorePanel.SetActive(true);
@@ -233,6 +271,36 @@ public class UIManager : MonoBehaviour
         }
 
         ShowGameOverPanel();
+    }
+
+    /// <summary>
+    /// Called when revive prompt should show (after death, before game over).
+    /// </summary>
+    void OnRevivePrompt()
+    {
+        // If the X icon is still showing, wait for it to disappear first
+        if (failIconTimer > 0f)
+        {
+            revivePending = true;
+            return;
+        }
+
+        ShowRevivePanel();
+    }
+
+    void ShowRevivePanel()
+    {
+        if (revivePanel != null) revivePanel.SetActive(true);
+    }
+
+    /// <summary>
+    /// Called when player accepts revive - hide revive panel, resume gameplay UI.
+    /// </summary>
+    void OnReviveAccepted()
+    {
+        if (revivePanel != null) revivePanel.SetActive(false);
+        // In-game score panel should already be visible
+        if (inGameScorePanel != null) inGameScorePanel.SetActive(true);
     }
 
     void ShowGameOverPanel()
@@ -277,19 +345,29 @@ public class UIManager : MonoBehaviour
             achievementShowcase.ShowPanel();
     }
 
+    public void OnReviveButton()
+    {
+        Debug.Log("Revive button clicked");
+        GameManager.Instance?.AcceptRevive();
+    }
+
+    public void OnDeclineReviveButton()
+    {
+        Debug.Log("Decline revive button clicked");
+        if (revivePanel != null) revivePanel.SetActive(false);
+        GameManager.Instance?.DeclineRevive();
+    }
+
     public void OnExitButton()
     {
         Debug.Log("Exit button clicked");
 
 #if UNITY_WEBGL && !UNITY_EDITOR
-        // In WebGL, close the browser tab
-        Application.ExternalEval("window.close();");
+        CloseWebGLWindow();
+#elif UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
 #else
         Application.Quit();
-#endif
-
-#if UNITY_EDITOR
-        UnityEditor.EditorApplication.isPlaying = false;
 #endif
     }
 

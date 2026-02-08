@@ -8,6 +8,7 @@ TagManager:
   - Ground
   - Platform
   - Boundary
+  - HoopEdge
   layers:
   - Default
   - TransparentFX

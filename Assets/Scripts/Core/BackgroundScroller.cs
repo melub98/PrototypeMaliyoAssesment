@@ -28,6 +28,7 @@ public class BackgroundScroller : MonoBehaviour
     [SerializeField] private float customSpeed = 2f;
 
     private bool isScrolling = false;
+    private BallController playerBall;
 
     void Start()
     {
@@ -35,6 +36,7 @@ public class BackgroundScroller : MonoBehaviour
         {
             GameManager.Instance.OnGameStart.AddListener(OnGameStart);
             GameManager.Instance.OnGameOver.AddListener(OnGameOver);
+            GameManager.Instance.OnRevive.AddListener(OnRevive);
         }
 
         // Auto-detect background width if sprites have SpriteRenderer
@@ -58,6 +60,11 @@ public class BackgroundScroller : MonoBehaviour
     {
         if (!isScrolling) return;
         if (background1 == null || background2 == null) return;
+
+        // Pause scrolling when ball is on a hoop rim
+        if (playerBall == null)
+            playerBall = Object.FindFirstObjectByType<BallController>();
+        if (playerBall != null && playerBall.IsOnRim) return;
 
         float speed = GetScrollSpeed();
         float movement = speed * Time.deltaTime;
@@ -87,6 +94,7 @@ public class BackgroundScroller : MonoBehaviour
         {
             GameManager.Instance.OnGameStart.RemoveListener(OnGameStart);
             GameManager.Instance.OnGameOver.RemoveListener(OnGameOver);
+            GameManager.Instance.OnRevive.RemoveListener(OnRevive);
         }
     }
 
@@ -113,6 +121,11 @@ public class BackgroundScroller : MonoBehaviour
     void OnGameOver()
     {
         isScrolling = false;
+    }
+
+    void OnRevive()
+    {
+        isScrolling = true;
     }
 
     /// <summary>

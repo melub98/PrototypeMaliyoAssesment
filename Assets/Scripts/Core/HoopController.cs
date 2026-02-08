@@ -97,6 +97,7 @@ public class HoopController : MonoBehaviour
     // Component references
     private AudioSource audioSource;
     private SpriteRenderer[] spriteRenderers;
+    private bool isGhostHoop;
 
     // Movement tracking
     private float startY;
@@ -135,6 +136,9 @@ public class HoopController : MonoBehaviour
         // Store initial Y position for oscillation
         startY = transform.position.y;
         moveTime = Random.Range(0f, Mathf.PI * 2f);
+
+        // Cache ghost hoop check (avoids GetComponent at score time)
+        isGhostHoop = GetComponent<GhostHoopEffect>() != null;
 
         // Setup fire effect if assigned
         if (fireEffect != null)
@@ -179,14 +183,18 @@ public class HoopController : MonoBehaviour
     {
         if (!hoopCleared)
         {
-            playerTouchedEdges = true;
-
-            if (rimBounceSound != null && audioSource != null)
+            // Only play sound and log on initial contact, not re-entries while rolling
+            if (!playerTouchedEdges)
             {
-                audioSource.PlayOneShot(rimBounceSound, 0.5f);
-            }
+                playerTouchedEdges = true;
 
-            Debug.Log("HoopController: Player touched hoop rim");
+                if (rimBounceSound != null && audioSource != null)
+                {
+                    audioSource.PlayOneShot(rimBounceSound, 0.5f);
+                }
+
+                Debug.Log("HoopController: Player touched hoop rim");
+            }
         }
     }
 
@@ -205,6 +213,12 @@ public class HoopController : MonoBehaviour
 
             if (GameManager.Instance != null)
             {
+                // Ghost hoop clean pass gives instant x8 multiplier
+                if (wasCleanPass && isGhostHoop)
+                {
+                    GameManager.Instance.SetMultiplier(8);
+                }
+
                 GameManager.Instance.AddScore(basePoints, wasCleanPass);
             }
 
@@ -227,11 +241,14 @@ public class HoopController : MonoBehaviour
 
     IEnumerator FadeOutAndDestroy()
     {
-        // Disable colliders so the fading hoop doesn't interact with anything
+        // Disable colliders so the cleared hoop doesn't interact with anything
         foreach (var col in GetComponentsInChildren<Collider2D>())
             col.enabled = false;
 
-        float fadeDuration = 0.3f;
+        // Wait before fading
+        yield return new WaitForSeconds(0.2f);
+
+        float fadeDuration = 0.2f;
         float elapsed = 0f;
 
         // Capture starting alpha for each renderer

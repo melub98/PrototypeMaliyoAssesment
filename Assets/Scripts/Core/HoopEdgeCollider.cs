@@ -24,6 +24,9 @@ public class HoopEdgeCollider : MonoBehaviour
             Debug.LogError("HoopEdgeCollider: No HoopController found in parent!");
         }
 
+        // Tag for fast collision checks (avoids GetComponent in BallController)
+        gameObject.tag = "HoopEdge";
+
         // Ensure collider is NOT a trigger (physical collision needed)
         Collider2D col = GetComponent<Collider2D>();
         if (col != null)

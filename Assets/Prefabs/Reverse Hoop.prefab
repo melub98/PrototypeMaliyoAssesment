@@ -227,6 +227,7 @@ Transform:
   m_LocalScale: {x: 0.5, y: 0.5, z: 0.5}
   m_ConstrainProportionsScale: 1
   m_Children:
+  - {fileID: 2369615675914228917}
   - {fileID: 5341659645871279746}
   - {fileID: 8611057311049940198}
   - {fileID: 7399837339870825168}
@@ -234,7 +235,6 @@ Transform:
   - {fileID: 884235299094664586}
   - {fileID: 7209946077864848305}
   - {fileID: 9089140851464736639}
-  - {fileID: 2369615675914228917}
   - {fileID: 3092940677617865163}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: -125.885}
@@ -264,7 +264,7 @@ MonoBehaviour:
   fireEffect: {fileID: 3196860245712159232}
   fireEffectThreshold: 4
   scaleFireWithMultiplier: 1
-  baseFireEmission: 20
+  baseFireEmission: 40
   maxFireEmission: 100
 --- !u!114 &8221472647653761441
 MonoBehaviour:
@@ -811,6 +811,18 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 1440183297388454537}
     m_Modifications:
+    - target: {fileID: 3957756974744281948, guid: 632aaf2f3a9cc0443b8ec6d3c2b7d2b1, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 2.9757993
+      objectReference: {fileID: 0}
+    - target: {fileID: 3957756974744281948, guid: 632aaf2f3a9cc0443b8ec6d3c2b7d2b1, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 2.9757993
+      objectReference: {fileID: 0}
+    - target: {fileID: 3957756974744281948, guid: 632aaf2f3a9cc0443b8ec6d3c2b7d2b1, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 2.9758
+      objectReference: {fileID: 0}
     - target: {fileID: 3957756974744281948, guid: 632aaf2f3a9cc0443b8ec6d3c2b7d2b1, type: 3}
       propertyPath: m_LocalPosition.x
       value: -1.34

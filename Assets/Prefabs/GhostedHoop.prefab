@@ -117,13 +117,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 928721510633640587}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.0018751505, y: -0.0010686659, z: -0.99980855, w: -0.019450037}
-  m_LocalPosition: {x: -1.1774238, y: 1.4428173, z: -0.000013589859}
+  m_LocalRotation: {x: 0.001943923, y: -0.0009377631, z: -0.9961303, w: -0.08786291}
+  m_LocalPosition: {x: -1.06, y: 1.41, z: 0}
   m_LocalScale: {x: 1, y: 3.1631, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1440183297388454537}
-  m_LocalEulerAnglesHint: {x: -0.127, y: -0.212, z: -182.229}
+  m_LocalEulerAnglesHint: {x: -0.127, y: -0.212, z: -190.081}
 --- !u!114 &8336628221701317253
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -173,8 +173,11 @@ EdgeCollider2D:
   m_Offset: {x: 0, y: 0}
   m_EdgeRadius: 0
   m_Points:
-  - {x: -0.6042684, y: 0.00025586225}
-  - {x: 0.4950034, y: 0.03167195}
+  - {x: -0.3114726, y: -0.011650558}
+  - {x: -0.11753119, y: -0.026230896}
+  - {x: 0.18157649, y: -0.023087118}
+  - {x: 0.51246405, y: 0.035263352}
+  - {x: 0.7599949, y: 0.1284121}
   m_AdjacentStartPoint: {x: 0, y: 0}
   m_AdjacentEndPoint: {x: 0, y: 0}
   m_UseAdjacentStartPoint: 0
@@ -190,8 +193,9 @@ GameObject:
   - component: {fileID: 1440183297388454537}
   - component: {fileID: 9177066329887721972}
   - component: {fileID: 8221472647653761441}
+  - component: {fileID: 8776827421342438701}
   m_Layer: 0
-  m_Name: Hoop
+  m_Name: GhostedHoop
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -236,7 +240,7 @@ MonoBehaviour:
   playerTouchedEdges: 0
   hoopCleared: 0
   basePoints: 1
-  hoopColor: {r: 0.9547169, g: 0.041431006, b: 0.041431006, a: 1}
+  hoopColor: {r: 0.9488888, g: 0.04313723, b: 0.9529412, a: 1}
   enableMovement: 0
   moveRange: 1.5
   moveSpeed: 2
@@ -262,6 +266,22 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   overrideSpeed: 0
   destroyXPosition: -12
+--- !u!114 &8776827421342438701
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2019026842990652504}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d58598bb2c0116546aaa54b2cdbedc50, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  visibleDuration: 0.7
+  ghostDuration: 1.7
+  fadeSpeed: 6
+  ghostAlpha: 0.1
 --- !u!1 &2903321515721412532
 GameObject:
   m_ObjectHideFlags: 0
@@ -462,13 +482,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5556789961150161524}
   serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: 0.06403794, w: 0.99794745}
-  m_LocalPosition: {x: -0.74, y: -1.44, z: 0}
+  m_LocalRotation: {x: -0, y: -0, z: -0.0026490686, w: 0.99999654}
+  m_LocalPosition: {x: -0.85, y: -1.35, z: 0}
   m_LocalScale: {x: 1, y: 3.1631, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1440183297388454537}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 7.343}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: -0.304}
 --- !u!114 &4283852283724023212
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -518,8 +538,12 @@ EdgeCollider2D:
   m_Offset: {x: 0, y: 0}
   m_EdgeRadius: 0
   m_Points:
-  - {x: -0.8300613, y: 0.078543894}
-  - {x: 0.550964, y: 0.094506815}
+  - {x: -0.7780066, y: 0.024768475}
+  - {x: -0.37747312, y: -0.0380004}
+  - {x: 0.0769298, y: -0.026467852}
+  - {x: 0.4487123, y: 0.04447452}
+  - {x: 0.5804482, y: 0.107302055}
+  - {x: 0.69236517, y: 0.17884889}
   m_AdjacentStartPoint: {x: 0, y: 0}
   m_AdjacentEndPoint: {x: 0, y: 0}
   m_UseAdjacentStartPoint: 0
@@ -707,15 +731,11 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 3957756974744281948, guid: 632aaf2f3a9cc0443b8ec6d3c2b7d2b1, type: 3}
       propertyPath: m_LocalScale.x
-      value: 3.5132
+      value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 3957756974744281948, guid: 632aaf2f3a9cc0443b8ec6d3c2b7d2b1, type: 3}
       propertyPath: m_LocalScale.y
-      value: 3.5132
-      objectReference: {fileID: 0}
-    - target: {fileID: 3957756974744281948, guid: 632aaf2f3a9cc0443b8ec6d3c2b7d2b1, type: 3}
-      propertyPath: m_LocalScale.z
-      value: 3.5132
+      value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 3957756974744281948, guid: 632aaf2f3a9cc0443b8ec6d3c2b7d2b1, type: 3}
       propertyPath: m_LocalPosition.x

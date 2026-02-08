@@ -26,6 +26,14 @@ public class GameManager : MonoBehaviour
     /// Fired on every hoop pass. Bool parameter = wasCleanPass.
     /// </summary>
     public UnityEvent<bool> OnHoopPassed = new UnityEvent<bool>();
+    /// <summary>
+    /// Fired when revive prompt should show (after ball hits floor, before game over UI).
+    /// </summary>
+    public UnityEvent OnRevivePrompt = new UnityEvent();
+    /// <summary>
+    /// Fired when player accepts revive.
+    /// </summary>
+    public UnityEvent OnRevive = new UnityEvent();
 
     [Header("Settings")]
     [Tooltip("Base speed for hoop movement")]
@@ -45,6 +53,9 @@ public class GameManager : MonoBehaviour
     // Cached player reference for shield checks
     private BallController playerBall;
 
+    // Revive tracking - only one revive per game
+    private bool hasUsedRevive = false;
+
     // Properties
     public bool IsPlaying => isPlaying;
     public bool HasStarted => hasStarted;
@@ -59,15 +70,30 @@ public class GameManager : MonoBehaviour
         if (Instance == null)
         {
             Instance = this;
-
-            // Cap frame rate to 30 for WebGL browser builds
-            QualitySettings.vSyncCount = 0;
-            Application.targetFrameRate = 30;
+            EnforceSettings();
         }
         else
         {
             Destroy(gameObject);
         }
+    }
+
+    /// <summary>
+    /// Forces FPS cap and portrait orientation once on startup.
+    /// </summary>
+    void EnforceSettings()
+    {
+        QualitySettings.vSyncCount = 0;
+        Application.targetFrameRate = 30;
+        Screen.orientation = ScreenOrientation.Portrait;
+    }
+
+    /// <summary>
+    /// Re-applies settings when app regains focus (e.g. after fullscreen toggle).
+    /// </summary>
+    void OnApplicationFocus(bool hasFocus)
+    {
+        if (hasFocus) EnforceSettings();
     }
 
     /// <summary>
@@ -81,6 +107,7 @@ public class GameManager : MonoBehaviour
         hasStarted = true;
         score = 0;
         currentMultiplier = 1;
+        hasUsedRevive = false;
         Time.timeScale = 1f;
 
         OnGameStart.Invoke();
@@ -171,6 +198,22 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Sets the multiplier to a specific value (e.g. ghost hoop x8 bonus).
+    /// Only raises the multiplier - won't lower it if already higher.
+    /// </summary>
+    public void SetMultiplier(int value)
+    {
+        if (value <= currentMultiplier) return;
+
+        if (maxMultiplier > 0 && value > maxMultiplier)
+            value = maxMultiplier;
+
+        currentMultiplier = value;
+        OnMultiplierChanged.Invoke(currentMultiplier);
+        Debug.Log($"GameManager: Multiplier set to x{currentMultiplier}");
+    }
+
+    /// <summary>
     /// Resets multiplier to 1 (called when touching edges without scoring).
     /// </summary>
     public void ResetMultiplier()
@@ -195,11 +238,50 @@ public class GameManager : MonoBehaviour
 
     /// <summary>
     /// Called by BallController when ball hits the floor after death.
-    /// Triggers the game over UI to appear.
+    /// Shows revive prompt if available, otherwise shows game over UI.
     /// </summary>
     public void ShowGameOverUI()
     {
+        if (!hasUsedRevive)
+        {
+            // Show revive prompt first
+            OnRevivePrompt.Invoke();
+            Debug.Log("GameManager: Showing revive prompt");
+        }
+        else
+        {
+            // Already used revive - go straight to game over
+            OnShowGameOverUI.Invoke();
+            Debug.Log("GameManager: Showing game over UI");
+        }
+    }
+
+    /// <summary>
+    /// Player accepts revive. Resumes game with shield active.
+    /// </summary>
+    public void AcceptRevive()
+    {
+        hasUsedRevive = true;
+        isPlaying = true;
+
+        if (playerBall == null)
+            playerBall = Object.FindFirstObjectByType<BallController>();
+
+        if (playerBall != null)
+        {
+            playerBall.Revive();
+        }
+
+        OnRevive.Invoke();
+        Debug.Log("GameManager: Player revived with shield!");
+    }
+
+    /// <summary>
+    /// Player declines revive. Shows game over UI.
+    /// </summary>
+    public void DeclineRevive()
+    {
         OnShowGameOverUI.Invoke();
-        Debug.Log("GameManager: Showing game over UI");
+        Debug.Log("GameManager: Revive declined - showing game over UI");
     }
 }
