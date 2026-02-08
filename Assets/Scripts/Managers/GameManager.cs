@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.Events;
+using System.Runtime.InteropServices;
 
 /// <summary>
 /// Central game manager for Flappy Jump.
@@ -8,6 +9,11 @@ using UnityEngine.Events;
 /// </summary>
 public class GameManager : MonoBehaviour
 {
+#if UNITY_WEBGL && !UNITY_EDITOR
+    [DllImport("__Internal")]
+    private static extern void InitMobileWebGL();
+#endif
+
     public static GameManager Instance { get; private set; }
 
     [Header("Events")]
@@ -71,6 +77,10 @@ public class GameManager : MonoBehaviour
         {
             Instance = this;
             EnforceSettings();
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+            InitMobileWebGL();
+#endif
         }
         else
         {

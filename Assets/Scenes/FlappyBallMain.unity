@@ -3715,13 +3715,13 @@ MonoBehaviour:
   hoopMoveRange: 2
   hoopMoveSpeed: 1
   reverseHoopPrefab: {fileID: 2019026842990652504, guid: 22b711173f9b386488c301a0d095ee3a, type: 3}
-  reverseHoopScoreThreshold: 10
-  reverseHoopChance: 30
+  reverseHoopScoreThreshold: 5
+  reverseHoopChance: 25
   reverseHoopRotationOffset: -120
   ghostHoopPrefab: {fileID: 2019026842990652504, guid: 0154563efebd29d498f30d09fb03569d, type: 3}
   ghostHoopMinCleared: 15
-  ghostHoopChanceEasy: 20
-  ghostHoopChanceMedium: 25
+  ghostHoopChanceEasy: 15
+  ghostHoopChanceMedium: 30
   ghostHoopChanceHard: 50
   shieldPrefab: {fileID: 4887669068219768892, guid: 7d1bff8bdceaaca4c809429f2a384b4b, type: 3}
   shieldSpawnChance: 30
@@ -10251,7 +10251,6 @@ MonoBehaviour:
   lockedXPosition: -3
   jumpTorque: -150
   maxAngularVelocity: 360
-  rimDamping: 0.595
   jumpSound: {fileID: 8300000, guid: 0bc0acbabcd83f045988f5394dfa9671, type: 3}
   deathSound: {fileID: 8300000, guid: 14a7398448a94b840b6f25c1784711ca, type: 3}
   shieldBlockSound: {fileID: 8300000, guid: a8153e0fd0212d649a8c717ce161f096, type: 3}
@@ -10317,7 +10316,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 1}
   m_AnchorMax: {x: 0.5, y: 1}
-  m_AnchoredPosition: {x: 0, y: -17.693897}
+  m_AnchoredPosition: {x: 0, y: -17.693848}
   m_SizeDelta: {x: 200, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1836694458
@@ -11874,7 +11873,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 1}
   m_AnchorMax: {x: 0.5, y: 1}
-  m_AnchoredPosition: {x: 0, y: -17.693897}
+  m_AnchoredPosition: {x: 0, y: -17.693848}
   m_SizeDelta: {x: 200, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &2105689521

@@ -246,7 +246,7 @@ public class HoopController : MonoBehaviour
             col.enabled = false;
 
         // Wait before fading
-        yield return new WaitForSeconds(0.2f);
+        yield return new WaitForSeconds(0.5f);
 
         float fadeDuration = 0.2f;
         float elapsed = 0f;

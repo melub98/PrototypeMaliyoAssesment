@@ -378,8 +378,11 @@ public class BallController : MonoBehaviour
         jumpAction.performed += OnJumpPerformed;
 
         // Mouse/Touch input
+        // NOTE: Use "press" not "tap" – "tap" requires a full tap cycle (down+up)
+        // which fails on iOS Safari WebGL due to touch event timing differences.
+        // "press" fires on touch-down for immediate, reliable input.
         touchAction = new InputAction("Touch", binding: "<Mouse>/leftButton");
-        touchAction.AddBinding("<Touchscreen>/primaryTouch/tap");
+        touchAction.AddBinding("<Touchscreen>/primaryTouch/press");
         touchAction.performed += OnTouchPerformed;
 
         jumpAction.Enable();
