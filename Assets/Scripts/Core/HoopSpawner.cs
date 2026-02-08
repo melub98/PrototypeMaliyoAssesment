@@ -96,6 +96,25 @@ public class HoopSpawner : MonoBehaviour
     [Range(0f, 100f)]
     [SerializeField] private float reverseHoopChance = 25f;
 
+    [Header("Ghost Hoop")]
+    [Tooltip("Ghost hoop prefab (grey, appears/disappears). Must have HoopController, HoopMover, and GhostHoopEffect")]
+    [SerializeField] private GameObject ghostHoopPrefab;
+
+    [Tooltip("Minimum hoops cleared before ghost hoops can appear")]
+    [SerializeField] private int ghostHoopMinCleared = 5;
+
+    [Tooltip("Ghost hoop chance on Easy difficulty (0-100)")]
+    [Range(0f, 100f)]
+    [SerializeField] private float ghostHoopChanceEasy = 10f;
+
+    [Tooltip("Ghost hoop chance on Medium difficulty (0-100)")]
+    [Range(0f, 100f)]
+    [SerializeField] private float ghostHoopChanceMedium = 20f;
+
+    [Tooltip("Ghost hoop chance on Hard difficulty (0-100)")]
+    [Range(0f, 100f)]
+    [SerializeField] private float ghostHoopChanceHard = 35f;
+
     [Header("Shield Power-Up")]
     [Tooltip("Shield power-up prefab. Spawns within hoops for collection")]
     [SerializeField] private GameObject shieldPrefab;
@@ -174,6 +193,10 @@ public class HoopSpawner : MonoBehaviour
         if (reverseHoopPrefab == null)
         {
             Debug.LogWarning("HoopSpawner: No reverse hoop prefab assigned. Reverse hoops will not spawn.");
+        }
+        if (ghostHoopPrefab == null)
+        {
+            Debug.LogWarning("HoopSpawner: No ghost hoop prefab assigned. Ghost hoops will not spawn.");
         }
         if (shieldPrefab == null)
         {
@@ -283,9 +306,28 @@ public class HoopSpawner : MonoBehaviour
         // Validate prefab exists
         if (hoopPrefab == null) return;
 
-        // Determine if this should be a reverse hoop
-        bool isReverse = ShouldSpawnReverseHoop();
-        GameObject prefabToUse = isReverse && reverseHoopPrefab != null ? reverseHoopPrefab : hoopPrefab;
+        // Determine special hoop type (ghost takes priority, then reverse, then normal)
+        bool isGhost = ShouldSpawnGhostHoop();
+        bool isReverse = !isGhost && ShouldSpawnReverseHoop();
+
+        GameObject prefabToUse;
+        string hoopName;
+
+        if (isGhost && ghostHoopPrefab != null)
+        {
+            prefabToUse = ghostHoopPrefab;
+            hoopName = "GhostHoop";
+        }
+        else if (isReverse && reverseHoopPrefab != null)
+        {
+            prefabToUse = reverseHoopPrefab;
+            hoopName = "ReverseHoop";
+        }
+        else
+        {
+            prefabToUse = hoopPrefab;
+            hoopName = "Hoop";
+        }
 
         // Random Y position within bounds
         float yPos = Random.Range(minY, maxY);
@@ -299,7 +341,7 @@ public class HoopSpawner : MonoBehaviour
 
         // Instantiate the hoop
         GameObject hoop = Instantiate(prefabToUse, spawnPos, rotation);
-        hoop.name = isReverse ? "ReverseHoop" : "Hoop";
+        hoop.name = hoopName;
 
         // Apply scale based on difficulty (smaller = harder)
         hoop.transform.localScale = Vector3.one * currentHoopScale;
@@ -309,6 +351,12 @@ public class HoopSpawner : MonoBehaviour
 
         if (hoopController != null)
         {
+            // Ghost hoops award 2 points
+            if (isGhost)
+            {
+                hoopController.SetBasePoints(2);
+            }
+
             // Apply fire effect based on current multiplier streak
             int currentMultiplier = GameManager.Instance != null ?
                 GameManager.Instance.CurrentMultiplier : 1;
@@ -324,10 +372,13 @@ public class HoopSpawner : MonoBehaviour
 
         hoopsSpawned++;
 
-        // Try to spawn shield power-up WITHIN this hoop
-        TrySpawnShield(spawnPos, rotation);
+        // Try to spawn shield power-up WITHIN this hoop (not for ghost hoops)
+        if (!isGhost)
+        {
+            TrySpawnShield(spawnPos, rotation);
+        }
 
-        Debug.Log($"HoopSpawner: Spawned hoop #{hoopsSpawned} at Y={yPos:F1}, angle={angle}°, scale={currentHoopScale}");
+        Debug.Log($"HoopSpawner: Spawned {hoopName} #{hoopsSpawned} at Y={yPos:F1}, angle={angle}°, scale={currentHoopScale}");
     }
 
     /// <summary>
@@ -386,6 +437,30 @@ public class HoopSpawner : MonoBehaviour
 
         // Random chance for movement
         return Random.Range(0f, 100f) < movingHoopChance;
+    }
+
+    /// <summary>
+    /// Determines if the next hoop should be a ghost hoop.
+    /// Ghost hoops appear after player clears enough hoops.
+    /// Spawn chance increases with difficulty.
+    /// </summary>
+    bool ShouldSpawnGhostHoop()
+    {
+        if (ghostHoopPrefab == null) return false;
+        if (GameManager.Instance == null) return false;
+
+        int currentScore = GameManager.Instance.GetScore();
+        if (currentScore < ghostHoopMinCleared) return false;
+
+        float chance;
+        switch (currentDifficulty)
+        {
+            case 0: chance = ghostHoopChanceEasy; break;
+            case 2: chance = ghostHoopChanceHard; break;
+            default: chance = ghostHoopChanceMedium; break;
+        }
+
+        return Random.Range(0f, 100f) < chance;
     }
 
     /// <summary>

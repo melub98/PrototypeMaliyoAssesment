@@ -22,10 +22,23 @@ public class UIManager : MonoBehaviour
     [SerializeField] private Button restartButton;
     [SerializeField] private Button exitButton;
 
-    [Header("Score Display")]
+    [Header("Score Display (In-Game)")]
+    [Tooltip("Panel that holds score + best score during gameplay")]
+    [SerializeField] private GameObject inGameScorePanel;
+
     [Tooltip("Current score during gameplay")]
     [SerializeField] private TextMeshProUGUI scoreText;
 
+    [Tooltip("Label for current score (e.g. 'Score')")]
+    [SerializeField] private TextMeshProUGUI scoreLabelText;
+
+    [Tooltip("All-time best score shown during gameplay")]
+    [SerializeField] private TextMeshProUGUI inGameBestText;
+
+    [Tooltip("Label for best score (e.g. 'Best')")]
+    [SerializeField] private TextMeshProUGUI bestLabelText;
+
+    [Header("Score Display (Game Over)")]
     [Tooltip("Final score on game over screen")]
     [SerializeField] private TextMeshProUGUI finalScoreText;
 
@@ -125,6 +138,7 @@ public class UIManager : MonoBehaviour
     {
         if (startPanel != null) startPanel.SetActive(true);
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
+        if (inGameScorePanel != null) inGameScorePanel.SetActive(false);
         if (shieldIndicator != null) shieldIndicator.SetActive(false);
         if (failIcon != null) failIcon.SetActive(false);
         if (scoreText != null) scoreText.text = "0";
@@ -161,6 +175,14 @@ public class UIManager : MonoBehaviour
         {
             scoreText.text = score.ToString();
         }
+
+        // Update best score display if player beats it mid-game
+        if (inGameBestText != null && LeaderboardManager.Instance != null)
+        {
+            int allTimeBest = LeaderboardManager.Instance.GetAllTimeBest();
+            int displayBest = Mathf.Max(score, allTimeBest);
+            inGameBestText.text = displayBest.ToString();
+        }
     }
 
     #endregion
@@ -176,6 +198,16 @@ public class UIManager : MonoBehaviour
         if (failIcon != null) failIcon.SetActive(false);
         failIconTimer = 0f;
         gameOverPending = false;
+
+        // Show in-game score panel with best score
+        if (inGameScorePanel != null) inGameScorePanel.SetActive(true);
+        if (scoreText != null) scoreText.text = "0";
+
+        if (inGameBestText != null && LeaderboardManager.Instance != null)
+        {
+            int allTimeBest = LeaderboardManager.Instance.GetAllTimeBest();
+            inGameBestText.text = allTimeBest.ToString();
+        }
     }
 
     /// <summary>
@@ -205,6 +237,8 @@ public class UIManager : MonoBehaviour
 
     void ShowGameOverPanel()
     {
+        // Hide in-game score panel when game over panel shows
+        if (inGameScorePanel != null) inGameScorePanel.SetActive(false);
         if (gameOverPanel != null) gameOverPanel.SetActive(true);
 
         int currentScore = GameManager.Instance != null ? GameManager.Instance.GetScore() : 0;

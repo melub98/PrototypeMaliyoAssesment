@@ -10,7 +10,7 @@ using System.Collections.Generic;
 /// - Ball maintains a fixed X position while the world scrolls past (classic Flappy Bird style)
 /// - Uses Unity's new Input System for cross-platform input (keyboard, touch, gamepad)
 /// - Implements a shield system that absorbs one boundary hit before game over
-/// - Ball rotates freely via physics (natural rolling on hoop rims)
+/// - Ball rotates freely via Unity physics (freezeRotation disabled at runtime)
 /// - Uses extra gravity when falling for snappier, more responsive controls
 ///
 /// ARCHITECTURE:
@@ -40,12 +40,19 @@ public class BallController : MonoBehaviour
     [Tooltip("X position where ball stays fixed. World scrolls past while ball stays here")]
     [SerializeField] private float lockedXPosition = -3f;
 
-    [Header("Rim Rolling Physics")]
-    [Tooltip("Forward torque applied on jump (clockwise spin for rolling right)")]
+    [Header("Spin")]
+    [Tooltip("Torque applied on each jump (negative = clockwise). Clamped by max angular velocity")]
     [SerializeField] private float jumpTorque = -150f;
 
-    [Tooltip("Small rightward push when jumping on hoop rim")]
+    [Tooltip("Maximum angular velocity in degrees/sec. Caps spin so collisions can override it")]
+    [SerializeField] private float maxAngularVelocity = 360f;
+
+    [Header("Rim Push")]
+    [Tooltip("Horizontal push force when jumping while touching hoop rim")]
     [SerializeField] private float rimPushForce = 1.5f;
+
+    [Tooltip("Max horizontal drift allowed when on hoop rim before snapping back")]
+    [SerializeField] private float maxRimDrift = 0.5f;
 
     [Header("Audio")]
     [SerializeField] private AudioClip jumpSound;
@@ -109,7 +116,7 @@ public class BallController : MonoBehaviour
     // Cached UIManager reference for shield indicator
     private UIManager uiManager;
 
-    // Hoop edge contact tracking - disables X lock so ball can roll on rim
+    // Hoop edge contact tracking - allows rim push when jumping on rim
     private int hoopEdgeContactCount = 0;
 
     // Invincibility after shield breaks
@@ -171,6 +178,9 @@ public class BallController : MonoBehaviour
             audioSource = gameObject.AddComponent<AudioSource>();
             audioSource.playOnAwake = false;
         }
+
+        // Ensure rotation is NOT frozen so Unity physics handles spinning naturally
+        rb.freezeRotation = false;
 
         // Store start position for reset functionality
         startPosition = transform.position;
@@ -254,12 +264,17 @@ public class BallController : MonoBehaviour
         }
 
         // Only update during gameplay (not dead)
-        // X lock is disabled when ball is touching a hoop rim so it can roll naturally
         if (GameManager.Instance != null && GameManager.Instance.IsPlaying && !isDead)
         {
             if (hoopEdgeContactCount <= 0)
             {
+                // Normal: hard lock to X position
                 LockHorizontalPosition();
+            }
+            else
+            {
+                // On rim: soft leash - allow small drift but don't get left behind
+                SoftLockHorizontalPosition();
             }
         }
 
@@ -305,6 +320,9 @@ public class BallController : MonoBehaviour
         {
             rb.linearVelocity += Vector2.up * Physics2D.gravity.y * (fallMultiplier - 1) * Time.fixedDeltaTime;
         }
+
+        // Clamp angular velocity so ball doesn't spin too fast
+        rb.angularVelocity = Mathf.Clamp(rb.angularVelocity, -maxAngularVelocity, maxAngularVelocity);
     }
 
     /// <summary>
@@ -429,24 +447,25 @@ public class BallController : MonoBehaviour
 
     /// <summary>
     /// Applies upward force for jump.
-    /// When on a hoop rim, also adds forward push and torque so the ball
-    /// rolls naturally along the rim instead of popping straight up.
+    /// Rotation is handled entirely by Unity physics (friction on collisions).
+    /// When on a hoop rim, also pushes horizontally so the ball
+    /// can roll up against the edge into the hoop or fall off.
     /// </summary>
     void Jump()
     {
         if (hoopEdgeContactCount > 0)
         {
-            // On hoop rim: push up + forward, add rolling torque
+            // On hoop rim: jump + push toward rim
             rb.linearVelocity = new Vector2(rb.linearVelocity.x + rimPushForce, jumpForce);
-            rb.AddTorque(jumpTorque);
         }
         else
         {
-            // In air: normal upward jump with light spin
+            // In air: normal jump
             rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
-            rb.AddTorque(jumpTorque * 0.3f);
         }
 
+        // Add spin on jump - clamped in FixedUpdate so it can't overpower collision physics
+        rb.AddTorque(jumpTorque);
         PlaySound(jumpSound);
     }
 
@@ -465,6 +484,24 @@ public class BallController : MonoBehaviour
         if (Mathf.Abs(pos.x - lockedXPosition) > 0.01f)
         {
             pos.x = lockedXPosition;
+            transform.position = pos;
+            rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
+        }
+    }
+
+    /// <summary>
+    /// Soft leash when on hoop rim - allows small horizontal drift
+    /// so the ball can push against the edge, but clamps it so
+    /// the ball doesn't get left behind by the scrolling screen.
+    /// </summary>
+    void SoftLockHorizontalPosition()
+    {
+        Vector3 pos = transform.position;
+        float drift = pos.x - lockedXPosition;
+
+        if (Mathf.Abs(drift) > maxRimDrift)
+        {
+            pos.x = lockedXPosition + Mathf.Sign(drift) * maxRimDrift;
             transform.position = pos;
             rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
         }
@@ -652,7 +689,7 @@ public class BallController : MonoBehaviour
     /// </summary>
     void OnCollisionEnter2D(Collision2D collision)
     {
-        // Track hoop edge contacts for rim rolling physics
+        // Track hoop edge contacts for rim push physics
         if (collision.gameObject.GetComponent<HoopEdgeCollider>() != null)
         {
             hoopEdgeContactCount++;
@@ -680,7 +717,7 @@ public class BallController : MonoBehaviour
 
     void OnCollisionExit2D(Collision2D collision)
     {
-        // Track hoop edge contacts for rim rolling physics
+        // Track leaving hoop edge
         if (collision.gameObject.GetComponent<HoopEdgeCollider>() != null)
         {
             hoopEdgeContactCount = Mathf.Max(0, hoopEdgeContactCount - 1);
@@ -827,7 +864,7 @@ public class BallController : MonoBehaviour
         rb.linearVelocity = Vector2.zero;
         rb.angularVelocity = 0f;
         rb.gravityScale = 0;
-        rb.freezeRotation = false;
+        hoopEdgeContactCount = 0;
         isDead = false;
         hasShield = false;
         isInvincible = false;

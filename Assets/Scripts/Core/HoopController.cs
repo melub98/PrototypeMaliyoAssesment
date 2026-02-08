@@ -38,6 +38,10 @@ public class HoopController : MonoBehaviour
     [Tooltip("Base points awarded for passing through. Multiplied by current multiplier for clean passes")]
     [SerializeField] private int basePoints = 1;
 
+    [Header("Hoop Color")]
+    [Tooltip("Color applied to all hoop sprites on spawn")]
+    [SerializeField] private Color hoopColor = Color.white;
+
     #endregion
 
     #region Movement Settings
@@ -121,8 +125,12 @@ public class HoopController : MonoBehaviour
             audioSource.playOnAwake = false;
         }
 
-        // Cache sprite renderers for fade-out
+        // Cache sprite renderers and apply hoop color
         spriteRenderers = GetComponentsInChildren<SpriteRenderer>();
+        foreach (var sr in spriteRenderers)
+        {
+            if (sr != null) sr.color = hoopColor;
+        }
 
         // Store initial Y position for oscillation
         startY = transform.position.y;
@@ -369,6 +377,19 @@ public class HoopController : MonoBehaviour
     /// Gets current multiplier level for this hoop.
     /// </summary>
     public int GetCurrentMultiplier() => currentMultiplier;
+
+    /// <summary>
+    /// Sets the base points this hoop awards. Used for special hoop types.
+    /// </summary>
+    public void SetBasePoints(int points)
+    {
+        basePoints = points;
+    }
+
+    /// <summary>
+    /// Gets cached sprite renderers for external effects (e.g. ghost hoop).
+    /// </summary>
+    public SpriteRenderer[] GetSpriteRenderers() => spriteRenderers;
 
     #endregion
 }

@@ -140,7 +140,7 @@ MonoBehaviour:
   overrideSpeed: 0
   destroyXPosition: -12
   rotationSpeed: 90
-  bobAmplitude: 0.2
+  bobAmplitude: 0.5
   bobSpeed: 2
-  collectSound: {fileID: 0}
+  collectSound: {fileID: 8300000, guid: 527101bfc5f7fb147a28129e8198240a, type: 3}
   shieldColor: {r: 0.058490515, g: 1, b: 1, a: 1}
